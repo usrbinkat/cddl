@@ -897,16 +897,19 @@ fn validate_cbor_tags_outside_prelude_domain() {
     .is_ok()
   }
 
+  // Every case is evaluated before asserting, so a failure reports each
+  // mismatched verdict rather than only the first.
+  let mut cases: Vec<(String, &[u8], bool)> = Vec::new();
+
   // RFC 8610 Appendix D: a tagged data item matches #6.n(...), `any`, or a
   // prelude type defined as a tag. Every other prelude type refuses it.
-  let bignum = b"\xc2\x41\x01"; // 2(h'01')
-  let foreign = b"\xd8\x63\x61\x74"; // 99("t")
+  let bignum: &[u8] = b"\xc2\x41\x01"; // 2(h'01')
+  let foreign: &[u8] = b"\xd8\x63\x61\x74"; // 99("t")
   for ty in [
     "tstr", "bool", "null", "nil", "uint", "nint", "int", "float", "bstr",
   ] {
-    let cddl = format!("x = {ty}");
-    assert!(!accepts(&cddl, bignum), "{} accepted 2(h'01')", cddl);
-    assert!(!accepts(&cddl, foreign), "{} accepted 99(\"t\")", cddl);
+    cases.push((format!("x = {ty}"), bignum, false));
+    cases.push((format!("x = {ty}"), foreign, false));
   }
 
   // Each tagged prelude type admits its own tag and payload only.
@@ -963,34 +966,66 @@ fn validate_cbor_tags_outside_prelude_domain() {
       b"\xd9\xd9\xf7\x00",
     ),
   ] {
-    let cddl = format!("x = {ty}");
-    assert!(accepts(&cddl, own), "{} refused its own tag", cddl);
-    assert!(!accepts(&cddl, other_tag), "{} accepted another tag", cddl);
+    cases.push((format!("x = {ty}"), own, true));
+    cases.push((format!("x = {ty}"), other_tag, false));
     if other_payload != own {
-      assert!(
-        !accepts(&cddl, other_payload),
-        "{} accepted another payload",
-        cddl
-      );
+      cases.push((format!("x = {ty}"), other_payload, false));
     }
   }
 
-  assert!(accepts("x = any", bignum));
-  assert!(accepts("x = any", foreign));
-  assert!(accepts(
-    "x = #6.40000({ a: uint })",
-    b"\xd9\x9c\x40\xa1\x61\x61\x00"
+  cases.push(("x = any".to_string(), bignum, true));
+  cases.push(("x = any".to_string(), foreign, true));
+  cases.push((
+    "x = #6.40000({ a: uint })".to_string(),
+    b"\xd9\x9c\x40\xa1\x61\x61\x00",
+    true,
   ));
-  assert!(!accepts(
-    "x = #6.40000({ a: uint })",
-    b"\xd9\x9c\x41\xa1\x61\x61\x00"
+  cases.push((
+    "x = #6.40000({ a: uint })".to_string(),
+    b"\xd9\x9c\x41\xa1\x61\x61\x00",
+    false,
   ));
 
-  // A tag-1 integer beyond i64 is refused, not a panic.
-  assert!(!accepts(
+  let mismatches: Vec<String> = cases
+    .iter()
+    .filter(|(cddl, cbor, accept)| accepts(cddl, cbor) != *accept)
+    .map(|(cddl, cbor, accept)| {
+      format!(
+        "{} with CBOR {:02x?} should {}",
+        cddl,
+        cbor,
+        if *accept { "accept" } else { "reject" }
+      )
+    })
+    .collect();
+  assert!(
+    mismatches.is_empty(),
+    "{} of {} cases mismatched:\n{}",
+    mismatches.len(),
+    cases.len(),
+    mismatches.join("\n")
+  );
+}
+
+#[test]
+fn validate_cbor_time_tag_integer_overflow() {
+  // RFC 8610 Appendix D: time = #6.1(number). An integer payload beyond the
+  // i64 range is not a representable timestamp and is refused, not a panic.
+  let result = validate_cbor_from_slice(
     "x = time",
-    b"\xc1\x1b\xff\xff\xff\xff\xff\xff\xff\xff"
-  ));
+    b"\xc1\x1b\xff\xff\xff\xff\xff\xff\xff\xff",
+    #[cfg(feature = "additional-controls")]
+    None,
+  );
+  assert!(result.is_err(), "1(18446744073709551615) was accepted");
+
+  validate_cbor_from_slice(
+    "x = time",
+    b"\xc1\x00",
+    #[cfg(feature = "additional-controls")]
+    None,
+  )
+  .unwrap();
 }
 
 #[test]
