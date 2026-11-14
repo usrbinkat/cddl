@@ -1009,8 +1009,10 @@ fn validate_cbor_tags_outside_prelude_domain() {
 
 #[test]
 fn validate_cbor_time_tag_integer_overflow() {
-  // RFC 8610 Appendix D: time = #6.1(number). An integer payload beyond the
-  // i64 range is not a representable timestamp and is refused, not a panic.
+  // RFC 8610 Appendix D defines time = #6.1(number) without a range. The
+  // validator checks tag-1 integers as chrono timestamps, whose seconds are
+  // i64; an integer beyond that range is refused with its timestamp error
+  // rather than a panic.
   let result = validate_cbor_from_slice(
     "x = time",
     b"\xc1\x1b\xff\xff\xff\xff\xff\xff\xff\xff",
