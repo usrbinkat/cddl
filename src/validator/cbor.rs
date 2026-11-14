@@ -9,7 +9,6 @@ use crate::{
   visitor::{self, *},
 };
 
-use core::convert::TryInto;
 use std::{
   borrow::Cow,
   convert::TryFrom,
@@ -1138,6 +1137,23 @@ impl<'a> CBORValidator<'a> {
     Ok(())
   }
 
+  /// Validate a tagged item against a prelude identifier that has no
+  /// dedicated tag arm. RFC 8610 Appendix D: a prelude type defined as a tag
+  /// validates through that definition; every other type refuses the item.
+  fn visit_tag_outside_dedicated_arms<T: std::fmt::Debug + 'static>(
+    &mut self,
+    ident: &Identifier<'a>,
+  ) -> visitor::Result<Error<T>>
+  where
+    cbor::Error<T>: From<cbor::Error<std::io::Error>>,
+  {
+    if let Some(tagged) = tag_from_token(&lookup_ident(ident.ident)) {
+      return self.visit_type2(&tagged);
+    }
+    self.add_error(format!("expected type {}, got {:?}", ident, self.cbor));
+    Ok(())
+  }
+
   /// Validate every definition contributing to a named type choice from one
   /// error checkpoint. Failed arms are tentative; their errors are retained
   /// only when every arm fails.
@@ -1720,6 +1736,20 @@ enum RangeBound {
   Float(f64),
 }
 
+/// Whether `value` lies in `l..u` (inclusive) or `l...u` (exclusive upper).
+fn range_contains(value: i128, l: i128, u: i128, is_inclusive: bool) -> bool {
+  l <= value && if is_inclusive { value <= u } else { value < u }
+}
+
+/// The comparison an upper range endpoint imposes: `<=` for `..`, `<` for `...`.
+fn range_upper_operator(is_inclusive: bool) -> &'static str {
+  if is_inclusive {
+    "<="
+  } else {
+    "<"
+  }
+}
+
 impl<'a, T: std::fmt::Debug + 'static> Validator<'a, '_, cbor::Error<T>> for CBORValidator<'a>
 where
   cbor::Error<T>: From<cbor::Error<std::io::Error>>,
@@ -2047,22 +2077,26 @@ where
     };
 
     match &self.cbor {
-      Value::Bytes(b) => {
-        let len = b.len() as i128;
-        if is_inclusive {
-          if len < l || len > u {
+      Value::Bytes(b) => match self.state.ctrl {
+        Some(ControlOperator::SIZE) => {
+          let len = b.len() as i128;
+          if !range_contains(len, l, u, is_inclusive) {
             self.add_error(format!(
-              "expected uint to be in range {} <= value <= {}, got Bytes({:?})",
-              l, u, b
+              "expected byte string length to be in the range {} <= value {} {}, got {}",
+              l,
+              range_upper_operator(is_inclusive),
+              u,
+              len
             ));
           }
-        } else if len < l || len >= u {
-          self.add_error(format!(
-            "expected uint to be in range {} <= value < {}, got Bytes({:?})",
-            l, u, b
-          ));
         }
-      }
+        _ => {
+          self.add_error(
+            "byte string value cannot be validated against a range without the .size control operator"
+              .to_string(),
+          );
+        }
+      },
       Value::Text(s) => match self.state.ctrl {
         Some(ControlOperator::SIZE) => {
           let len = s.len() as i128;
@@ -4353,8 +4387,12 @@ where
           1 => {
             if is_ident_time_data_type(self.state.cddl, ident) {
               if let Value::Integer(value) = *value.as_ref() {
-                let dt = Utc.timestamp_opt(value.try_into().unwrap(), 0);
-                if let chrono::LocalResult::None = dt {
+                let valid = i64::try_from(value)
+                  .map(|seconds| {
+                    !matches!(Utc.timestamp_opt(seconds, 0), chrono::LocalResult::None)
+                  })
+                  .unwrap_or(false);
+                if !valid {
                   self.add_error(format!(
                     "expected time data type, invalid UNIX timestamp {:?}",
                     self.cbor
@@ -4377,7 +4415,7 @@ where
               self.add_error(format!("expected type {}, got {:?}", ident, self.cbor));
             }
           }
-          _ => (),
+          _ => return self.visit_tag_outside_dedicated_arms::<T>(ident),
         }
 
         Ok(())

@@ -8,7 +8,9 @@
 // between two floating-point values (matching floats) only.
 //
 // Every expected verdict below was cross-checked against the reference
-// implementation (ruby cddl gem 0.12.14) before being committed.
+// implementation (ruby cddl gem 0.12.14) before being committed. The verdicts
+// in range_endpoints_byte_strings_require_size were cross-checked against
+// ruby cddl 0.12.11, the version the flake's devshell provides.
 
 use cddl::validator::validate_cbor_from_slice;
 
@@ -348,6 +350,68 @@ fn range_endpoints_uint_to_uint_controls() {
       cbor: b"\x0b",
       accept: false,
       rationale: "11 is above upper endpoint 10",
+    },
+  ]);
+}
+
+#[test]
+fn range_endpoints_byte_strings_require_size() {
+  // RFC 8610 Section 2.2.2.1: a range matches integers or floats only. A byte
+  // string's length is constrained through `.size` (Section 3.8.1).
+  check(&[
+    Claim {
+      cddl: "t = 0..255",
+      cbor: b"\x41\x01",
+      accept: false,
+      rationale: "a byte string is not an integer",
+    },
+    Claim {
+      cddl: "t = -128..127",
+      cbor: b"\x41\x01",
+      accept: false,
+      rationale: "a byte string is not an integer",
+    },
+    Claim {
+      cddl: "t = 0...2",
+      cbor: b"\x41\x01",
+      accept: false,
+      rationale: "a byte string is not an integer",
+    },
+    Claim {
+      cddl: "t = { a: 0..255 }",
+      cbor: b"\xa1\x61\x61\x41\x01",
+      accept: false,
+      rationale: "a byte string map value is not an integer",
+    },
+    Claim {
+      cddl: "t = [0..255]",
+      cbor: b"\x81\x41\x01",
+      accept: false,
+      rationale: "a byte string array element is not an integer",
+    },
+    Claim {
+      cddl: "t = 0..255",
+      cbor: b"\x01",
+      accept: true,
+      rationale: "1 is within the range",
+    },
+    Claim {
+      cddl: "t = bstr .size (0..255)",
+      cbor: b"\x41\x01",
+      accept: true,
+      rationale: ".size constrains the byte string's length: 1 is within 0..255",
+    },
+    Claim {
+      cddl: "t = bstr .size (1...2)",
+      cbor: b"\x41\x01",
+      accept: true,
+      rationale: "length 1 is the included lower endpoint",
+    },
+    Claim {
+      cddl: "t = bstr .size (2..3)",
+      cbor: b"\x41\x01",
+      accept: false,
+      rationale: "length 1 is below the lower endpoint 2",
     },
   ]);
 }

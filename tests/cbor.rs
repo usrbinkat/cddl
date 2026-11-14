@@ -886,6 +886,114 @@ fn verify_large_tag_values() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn validate_cbor_tags_outside_prelude_domain() {
+  fn accepts(cddl: &str, cbor: &[u8]) -> bool {
+    validate_cbor_from_slice(
+      cddl,
+      cbor,
+      #[cfg(feature = "additional-controls")]
+      None,
+    )
+    .is_ok()
+  }
+
+  // RFC 8610 Appendix D: a tagged data item matches #6.n(...), `any`, or a
+  // prelude type defined as a tag. Every other prelude type refuses it.
+  let bignum = b"\xc2\x41\x01"; // 2(h'01')
+  let foreign = b"\xd8\x63\x61\x74"; // 99("t")
+  for ty in [
+    "tstr", "bool", "null", "nil", "uint", "nint", "int", "float", "bstr",
+  ] {
+    let cddl = format!("x = {ty}");
+    assert!(!accepts(&cddl, bignum), "{} accepted 2(h'01')", cddl);
+    assert!(!accepts(&cddl, foreign), "{} accepted 99(\"t\")", cddl);
+  }
+
+  // Each tagged prelude type admits its own tag and payload only.
+  for (ty, own, other_tag, other_payload) in [
+    (
+      "tdate",
+      &b"\xc0\x741970-01-01T00:00:00Z"[..],
+      &b"\xc1\x741970-01-01T00:00:00Z"[..],
+      &b"\xc0\x00"[..],
+    ),
+    ("time", b"\xc1\x00", b"\xc0\x00", b"\xc1\x61\x74"),
+    ("eb64url", b"\xd5\x41\x01", b"\xd6\x41\x01", b"\xd5\x41\x01"),
+    (
+      "eb64legacy",
+      b"\xd6\x41\x01",
+      b"\xd5\x41\x01",
+      b"\xd6\x41\x01",
+    ),
+    ("eb16", b"\xd7\x41\x01", b"\xd6\x41\x01", b"\xd7\x41\x01"),
+    (
+      "encoded-cbor",
+      b"\xd8\x18\x41\x01",
+      b"\xd8\x19\x41\x01",
+      b"\xd8\x18\x61\x74",
+    ),
+    (
+      "uri",
+      b"\xd8\x20\x63a:b",
+      b"\xd8\x21\x63a:b",
+      b"\xd8\x20\x41\x01",
+    ),
+    (
+      "b64legacy",
+      b"\xd8\x22\x61\x74",
+      b"\xd8\x23\x61\x74",
+      b"\xd8\x22\x41\x01",
+    ),
+    (
+      "regexp",
+      b"\xd8\x23\x61\x74",
+      b"\xd8\x24\x61\x74",
+      b"\xd8\x23\x41\x01",
+    ),
+    (
+      "mime-message",
+      b"\xd8\x24\x61\x74",
+      b"\xd8\x23\x61\x74",
+      b"\xd8\x24\x41\x01",
+    ),
+    (
+      "cbor-any",
+      b"\xd9\xd9\xf7\x00",
+      b"\xd9\xd9\xf6\x00",
+      b"\xd9\xd9\xf7\x00",
+    ),
+  ] {
+    let cddl = format!("x = {ty}");
+    assert!(accepts(&cddl, own), "{} refused its own tag", cddl);
+    assert!(!accepts(&cddl, other_tag), "{} accepted another tag", cddl);
+    if other_payload != own {
+      assert!(
+        !accepts(&cddl, other_payload),
+        "{} accepted another payload",
+        cddl
+      );
+    }
+  }
+
+  assert!(accepts("x = any", bignum));
+  assert!(accepts("x = any", foreign));
+  assert!(accepts(
+    "x = #6.40000({ a: uint })",
+    b"\xd9\x9c\x40\xa1\x61\x61\x00"
+  ));
+  assert!(!accepts(
+    "x = #6.40000({ a: uint })",
+    b"\xd9\x9c\x41\xa1\x61\x61\x00"
+  ));
+
+  // A tag-1 integer beyond i64 is refused, not a panic.
+  assert!(!accepts(
+    "x = time",
+    b"\xc1\x1b\xff\xff\xff\xff\xff\xff\xff\xff"
+  ));
+}
+
+#[test]
 fn validate_range_operators() -> Result<(), Box<dyn Error>> {
   let cddl = indoc!(
     r#"
