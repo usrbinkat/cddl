@@ -189,3 +189,39 @@ fn bignum_as_value() {
     &[0x81, 0xc3, 0x01],
   );
 }
+
+/// `unsigned = uint / biguint` and `integer = int / bigint`.
+#[test]
+fn bignum_via_numeric_preludes() {
+  assert_valid(
+    "[unsigned] tag 2",
+    "start = [unsigned]",
+    &[0x81, 0xc2, 0x41, 0x01],
+  );
+  assert_valid(
+    "[integer] tag 2",
+    "start = [integer]",
+    &[0x81, 0xc2, 0x41, 0x01],
+  );
+  assert_valid(
+    "[integer] tag 3",
+    "start = [integer]",
+    &[0x81, 0xc3, 0x41, 0x01],
+  );
+
+  assert_invalid(
+    "[unsigned] tag 3",
+    "start = [unsigned]",
+    &[0x81, 0xc3, 0x41, 0x01],
+  );
+  assert_invalid(
+    "[integer] tag 2(1)",
+    "start = [integer]",
+    &[0x81, 0xc2, 0x01],
+  );
+  assert_invalid(
+    "[integer] unknown tag 5",
+    "start = [integer]",
+    &[0x81, 0xc5, 0x41, 0x01],
+  );
+}

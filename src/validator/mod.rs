@@ -1726,14 +1726,15 @@ pub fn is_ident_integer_data_type(cddl: &CDDL, ident: &Identifier) -> bool {
   })
 }
 
-/// Does the given identifier denote a bignum data type that accepts CBOR tag
+/// Does the given identifier denote a type that accepts the bignum CBOR tag
 /// `tag`? Per the RFC 8610 prelude: `biguint = #6.2(bstr)`,
-/// `bignint = #6.3(bstr)` and `bigint = biguint / bignint`.
+/// `bignint = #6.3(bstr)`, `bigint = biguint / bignint`,
+/// `unsigned = uint / biguint` and `integer = int / bigint`.
 pub fn ident_accepts_bignum_tag(cddl: &CDDL, ident: &Identifier, tag: u64) -> bool {
   match lookup_ident(ident.ident) {
-    Token::BIGUINT => return tag == 2,
+    Token::BIGUINT | Token::UNSIGNED => return tag == 2,
     Token::BIGNINT => return tag == 3,
-    Token::BIGINT => return tag == 2 || tag == 3,
+    Token::BIGINT | Token::INTEGER => return tag == 2 || tag == 3,
     _ => (),
   }
 
