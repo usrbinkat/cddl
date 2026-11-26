@@ -522,6 +522,25 @@
 //! Ensure that your regex string is properly JSON escaped when using this
 //! control.
 //!
+//! `.regexp` matches a text string only as a whole: XSD regular expressions
+//! are implicitly anchored at head and tail ([XML Schema Part 2, Appendix
+//! F](https://www.w3.org/TR/2004/REC-xmlschema-2-20041028/#regexs)), so `tstr
+//! .regexp "[a-z]+"` refuses `"abc1"`. A pattern is translated to the `regex`
+//! crate's dialect in one pass: the XSD escapes `\n`, `\r`, `\t`, `\s`, `\S`,
+//! `\d`, `\D`, `\w`, `\W`, `\p{..}` and `\P{..}` and escaped `regex`
+//! metacharacters are kept; any other escaped character stands for itself, as
+//! schemas written for other dialects use it (`\:`, `\_`). Lookaround is
+//! refused. Character classes follow the `regex` crate (`.` excludes only
+//! `\n`; `\s`, `\w` and `\d` are Unicode-aware); XSD's class subtraction,
+//! block escapes (`\p{IsBasicLatin}`) and `\i`/`\c` are not translated. Write
+//! code points with CDDL's `\u` escapes, as RFC 8610, section 3.8.3.1,
+//! recommends: `tstr .regexp "[\u0000-\u007F]*"` is the ASCII text strings.
+//!
+//! `.abnf` and `.abnfb` read their controller as one ABNF element followed,
+//! after a newline, by zero or more rules ([RFC 9165, section
+//! 3](https://www.rfc-editor.org/rfc/rfc9165#section-3)); the target must
+//! match the element as a whole, and a controller with no element is refused.
+//!
 //! If you've enabled the `additional-controls` feature, the table of controls
 //! below is also available for use:
 //!
@@ -694,7 +713,7 @@ mod parser_tests;
 
 #[doc(inline)]
 pub use self::{
-  parser::{cddl_from_str, Error},
+  parser::{Error, cddl_from_str},
   token::Token,
 };
 

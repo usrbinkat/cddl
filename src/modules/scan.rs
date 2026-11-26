@@ -570,10 +570,12 @@ mod tests {
   #[test]
   fn namespaced_names_scan_as_one_identifier() {
     let scan = scan("mydata = {Fritz: cose.empty_or_serialized_map}");
-    assert!(scan
-      .idents
-      .iter()
-      .any(|i| i.text == "cose.empty_or_serialized_map"));
+    assert!(
+      scan
+        .idents
+        .iter()
+        .any(|i| i.text == "cose.empty_or_serialized_map")
+    );
   }
 
   #[test]
@@ -581,10 +583,12 @@ mod tests {
     let scan = scan("a = bstr .cbor header_map");
     let cbor = scan.idents.iter().find(|i| i.text == "cbor").unwrap();
     assert_eq!(cbor.role, IdentRole::ControlName);
-    assert!(scan
-      .idents
-      .iter()
-      .any(|i| i.text == "header_map" && i.role == IdentRole::Reference));
+    assert!(
+      scan
+        .idents
+        .iter()
+        .any(|i| i.text == "header_map" && i.role == IdentRole::Reference)
+    );
   }
 
   #[test]
@@ -599,11 +603,13 @@ mod tests {
     let scan = scan("messages<a, b> = [a, b]\n");
     assert_eq!(scan.rules.len(), 1);
     assert_eq!(scan.rules[0].name, "messages");
-    assert!(scan
-      .idents
-      .iter()
-      .filter(|i| i.text == "a")
-      .all(|i| i.role == IdentRole::GenericParam));
+    assert!(
+      scan
+        .idents
+        .iter()
+        .filter(|i| i.text == "a")
+        .all(|i| i.role == IdentRole::GenericParam)
+    );
   }
 
   #[test]
@@ -661,10 +667,12 @@ mod tests {
     let scan = scan("a = messages<int>\n");
     assert_eq!(scan.rules.len(), 1);
     assert_eq!(scan.rules[0].name, "a");
-    assert!(scan
-      .idents
-      .iter()
-      .any(|i| i.text == "messages" && i.role == IdentRole::Reference));
+    assert!(
+      scan
+        .idents
+        .iter()
+        .any(|i| i.text == "messages" && i.role == IdentRole::Reference)
+    );
   }
 
   #[test]
@@ -723,14 +731,18 @@ mod tests {
       .collect();
     assert_eq!(references, ["item", "other", "third"]);
     let scan = scan("value = 1e+5.eq limit\n");
-    assert!(scan
-      .idents
-      .iter()
-      .any(|ident| ident.text == "eq" && ident.role == IdentRole::ControlName));
-    assert!(scan
-      .idents
-      .iter()
-      .any(|ident| ident.text == "limit" && ident.role == IdentRole::Reference));
+    assert!(
+      scan
+        .idents
+        .iter()
+        .any(|ident| ident.text == "eq" && ident.role == IdentRole::ControlName)
+    );
+    assert!(
+      scan
+        .idents
+        .iter()
+        .any(|ident| ident.text == "limit" && ident.role == IdentRole::Reference)
+    );
   }
 
   #[test]
@@ -755,10 +767,12 @@ mod tests {
       .map(|ident| ident.text.as_str())
       .collect();
     assert_eq!(controls, ["size", "size"]);
-    assert!(scan
-      .idents
-      .iter()
-      .any(|ident| ident.text == "e" && ident.role == IdentRole::Reference));
+    assert!(
+      scan
+        .idents
+        .iter()
+        .any(|ident| ident.text == "e" && ident.role == IdentRole::Reference)
+    );
   }
 
   #[test]

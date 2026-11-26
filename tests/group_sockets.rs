@@ -103,13 +103,15 @@ fn json_defined_group_socket_still_validates_its_entries() {
 fn cbor_undefined_group_socket_cannot_satisfy_required_occurrences() {
   for occurrence in ["", "+", "1*2"] {
     let schema = format!("m = {{ {occurrence} $$s }}");
-    assert!(cddl::validate_cbor_from_slice(
-      &schema,
-      &[0xa0],
-      #[cfg(feature = "additional-controls")]
-      None,
-    )
-    .is_err());
+    assert!(
+      cddl::validate_cbor_from_slice(
+        &schema,
+        &[0xa0],
+        #[cfg(feature = "additional-controls")]
+        None,
+      )
+      .is_err()
+    );
   }
 }
 
@@ -118,13 +120,15 @@ fn cbor_undefined_group_socket_cannot_satisfy_required_occurrences() {
 fn json_undefined_group_socket_cannot_satisfy_required_occurrences() {
   for occurrence in ["", "+", "1*2"] {
     let schema = format!("m = {{ {occurrence} $$s }}");
-    assert!(cddl::validate_json_from_str(
-      &schema,
-      "{}",
-      #[cfg(feature = "additional-controls")]
-      None,
-    )
-    .is_err());
+    assert!(
+      cddl::validate_json_from_str(
+        &schema,
+        "{}",
+        #[cfg(feature = "additional-controls")]
+        None,
+      )
+      .is_err()
+    );
   }
 }
 

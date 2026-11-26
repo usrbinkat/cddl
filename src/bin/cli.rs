@@ -9,7 +9,7 @@ extern crate log;
 
 use cddl::cddl_from_str;
 #[cfg(all(feature = "modules", not(target_arch = "wasm32")))]
-use cddl::modules::{resolve_modules, FsModuleSource, ModuleError, ResolveOptions};
+use cddl::modules::{FsModuleSource, ModuleError, ResolveOptions, resolve_modules};
 #[cfg(not(target_arch = "wasm32"))]
 use cddl::{
   parser::root_type_name_from_cddl_str, validate_cbor_from_slice, validate_csv_from_str,

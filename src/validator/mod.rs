@@ -15,8 +15,8 @@ mod control;
 use crate::ast::Span;
 use crate::{
   ast::{
-    GenericArgs, Group, GroupChoice, GroupEntry, GroupRule, Identifier, MemberKey, Occur,
-    RangeCtlOp, Rule, Type, Type1, Type2, TypeChoice, TypeRule, ValueMemberKeyEntry, CDDL,
+    CDDL, GenericArgs, Group, GroupChoice, GroupEntry, GroupRule, Identifier, MemberKey, Occur,
+    RangeCtlOp, Rule, Type, Type1, Type2, TypeChoice, TypeRule, ValueMemberKeyEntry,
   },
   token::{self, *},
   visitor::Visitor,
@@ -2008,35 +2008,84 @@ impl<E> ArraySeqCtx<'_, E> {
   }
 }
 
-/// Regex needs to be formatted in a certain way so it can be parsed. See
-/// <https://github.com/anweiss/cddl/issues/67>
+/// The escapes of XSD regular expressions (W3C XML Schema Part 2, Appendix F,
+/// productions [24], [25], [26] and [37]) that the `regex` crate reads with
+/// the same letter: kept escaped by [`format_regex`], never reduced to the
+/// letter itself.
+const XSD_ESCAPES: &str = "nrtsSdDwWpP";
+
+/// A `.regexp` controller's pattern (RFC 8610, section 3.8.3) in the dialect
+/// of the `regex` crate, or `None` when it uses a construct that dialect does
+/// not have (lookaround) or ends in a lone backslash. One left-to-right pass,
+/// so an escaped backslash never escapes the character after it:
+///
+/// - an escape of a `regex` metacharacter, and the XSD escapes `\n`, `\r`,
+///   `\t`, `\s`, `\S`, `\d`, `\D`, `\w`, `\W`, `\p{..}` and `\P{..}`, are
+///   kept;
+/// - any other escaped character is that character, as schemas written for
+///   other dialects use it (`\:`, `\_`, `\/`); see
+///   <https://github.com/anweiss/cddl/issues/67>;
+/// - a named group `(?<name>` is written `(?P<name>`.
+///
+/// The pattern is matched against the whole target ([`regexp_regex`]).
 pub fn format_regex(input: &str) -> Option<String> {
-  let mut formatted_regex = String::from(input);
-  let mut unescape = Vec::new();
-  for (idx, c) in formatted_regex.char_indices() {
-    if c == '\\' {
-      if let Some(c) = formatted_regex.chars().nth(idx + 1) {
-        if !regex_syntax::is_meta_character(c) && c != 'd' {
-          unescape.push(format!("\\{}", c));
+  let mut formatted = String::with_capacity(input.len());
+  let mut chars = input.chars().peekable();
+  while let Some(c) = chars.next() {
+    match c {
+      '\\' => {
+        let escaped = chars.next()?;
+        if regex_syntax::is_meta_character(escaped) || XSD_ESCAPES.contains(escaped) {
+          formatted.push('\\');
+        }
+        formatted.push(escaped);
+      }
+      '(' if chars.peek() == Some(&'?') => {
+        chars.next();
+        formatted.push_str("(?");
+        match chars.peek() {
+          Some('=') | Some('!') => return None,
+          Some('<') => {
+            chars.next();
+            if let Some('=') | Some('!') = chars.peek() {
+              return None;
+            }
+            formatted.push_str("P<");
+          }
+          _ => {}
         }
       }
+      _ => formatted.push(c),
     }
   }
+  Some(formatted)
+}
 
-  for replace in unescape.iter() {
-    formatted_regex =
-      formatted_regex.replace(replace, &replace.chars().nth(1).unwrap().to_string());
-  }
+/// `pattern`, in the `regex` crate's dialect, compiled to match a target only
+/// as a whole. The pattern is first compiled on its own, so a pattern that is
+/// not one regular expression (`a)(b`) is refused rather than given another
+/// meaning by the anchoring group.
+pub fn whole_regex(pattern: &str) -> Result<regex::Regex, String> {
+  regex::Regex::new(pattern).map_err(|e| e.to_string())?;
+  regex::Regex::new(&format!(r"\A(?:{})\z", pattern)).map_err(|e| e.to_string())
+}
 
-  for find in ["?=", "?!", "?<=", "?<!"].iter() {
-    if formatted_regex.contains(find) {
-      return None;
-    }
-  }
+/// A `.pcre` controller ([CDDL-Freezer]) compiled to match a target only as a
+/// whole, refused as [`whole_regex`] refuses a pattern that is not one
+/// expression on its own.
+///
+/// [CDDL-Freezer]: https://datatracker.ietf.org/doc/draft-bormann-cbor-cddl-freezer/
+#[cfg(feature = "freezer")]
+pub fn whole_pcre(pattern: &str) -> Result<fancy_regex::Regex, String> {
+  fancy_regex::Regex::new(pattern).map_err(|e| e.to_string())?;
+  fancy_regex::Regex::new(&format!("^(?:{})$", pattern)).map_err(|e| e.to_string())
+}
 
-  formatted_regex = formatted_regex.replace("?<", "?P<");
-
-  Some(formatted_regex)
+/// A `.regexp` controller compiled to match exactly the text strings it
+/// denotes: XSD regular expressions are implicitly anchored at head and tail
+/// (W3C XML Schema Part 2, Appendix F), so the target must match as a whole.
+pub fn regexp_regex(pattern: &str) -> Result<regex::Regex, String> {
+  whole_regex(&format_regex(pattern).ok_or_else(|| "malformed regex".to_string())?)
 }
 
 #[allow(missing_docs)]
@@ -2106,6 +2155,67 @@ mod tests {
   #![cfg(not(target_arch = "wasm32"))]
 
   use super::*;
+
+  /// A `.regexp` controller denotes the text strings it matches as a whole
+  /// (XSD regular expressions are implicitly anchored): a string holding a
+  /// match is not one, so an ASCII class refuses a string with one non-ASCII
+  /// character.
+  #[test]
+  fn a_regexp_matches_only_the_whole_target() {
+    let letters = regexp_regex("[a-z]+").unwrap();
+    assert!(letters.is_match("abc"));
+    assert!(!letters.is_match("abc1"), "a partial match was accepted");
+    assert!(!letters.is_match("1abc"), "a partial match was accepted");
+    let ascii = regexp_regex("[\u{0}-\u{7F}]*").unwrap();
+    assert!(ascii.is_match(""));
+    assert!(ascii.is_match("a\u{0}\u{7F}"));
+    assert!(
+      !ascii.is_match("ab\u{E9}"),
+      "a non-ASCII character was accepted"
+    );
+  }
+
+  /// The XSD escapes the `regex` crate reads alike survive translation, an
+  /// escaped backslash escapes nothing after it, and an escape after
+  /// non-ASCII text is read where it is; other escaped characters are the
+  /// characters, as schemas written for other dialects use them.
+  #[test]
+  fn xsd_escapes_survive_translation() {
+    let upper = regexp_regex("\\p{Lu}+").unwrap();
+    assert!(upper.is_match("AB"));
+    assert!(!upper.is_match("ab"));
+    assert!(regexp_regex("\\P{Lu}").unwrap().is_match("a"));
+    assert!(
+      regexp_regex("a\\nb\\tc\\rd")
+        .unwrap()
+        .is_match("a\nb\tc\rd")
+    );
+    assert!(regexp_regex("\\d{2}\\s\\S").unwrap().is_match("42 x"));
+    assert!(regexp_regex("\\w\\W").unwrap().is_match("a-"));
+    assert!(regexp_regex("\\\\:").unwrap().is_match("\\:"));
+    assert!(
+      regexp_regex("\u{E9}\u{E9}\\:")
+        .unwrap()
+        .is_match("\u{E9}\u{E9}:")
+    );
+    assert!(
+      regexp_regex("did\\:(?<method>[a-z]+)")
+        .unwrap()
+        .is_match("did:web")
+    );
+  }
+
+  /// A pattern that is not one expression is refused rather than given
+  /// another meaning by the anchoring group; so are lookaround, which the
+  /// `regex` crate does not have, and a trailing lone backslash.
+  #[test]
+  fn a_pattern_that_is_not_one_expression_is_refused() {
+    assert!(whole_regex("a)(b").is_err());
+    assert!(regexp_regex("a)(b").is_err());
+    assert!(regexp_regex("a\\").is_err());
+    assert!(regexp_regex("(?=a)a").is_err());
+    assert!(regexp_regex("(?<!a)b").is_err());
+  }
 
   #[cfg(feature = "json")]
   #[test]

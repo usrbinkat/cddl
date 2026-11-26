@@ -32,7 +32,7 @@ fn fail() {
 #[cfg(feature = "modules")]
 #[wasm_bindgen_test]
 fn modules_validate_sources_and_preserve_literal_directive_text() {
-  use cddl::modules::{resolve_modules, MemoryModuleSource, ModuleError, ResolveOptions};
+  use cddl::modules::{MemoryModuleSource, ModuleError, ResolveOptions, resolve_modules};
 
   let mut source = MemoryModuleSource::new();
   source.insert("broken", "value = {");
@@ -69,7 +69,7 @@ fn decoded_byte_literals_format() {
 #[cfg(feature = "modules")]
 #[wasm_bindgen_test]
 fn owning_document_and_javascript_module_map() {
-  use cddl::modules::{resolve_cddl_modules, MemoryModuleSource, ResolveOptions, ResolvedCddl};
+  use cddl::modules::{MemoryModuleSource, ResolveOptions, ResolvedCddl, resolve_cddl_modules};
   use wasm_bindgen::JsValue;
 
   let modules = js_sys::Object::new();

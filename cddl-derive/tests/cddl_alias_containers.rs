@@ -29,9 +29,11 @@ fn assert_round_trip<T: serde::Serialize + serde::de::DeserializeOwned>() {
   ciborium::into_writer(&record, &mut bytes).unwrap();
   let wire: ciborium::Value = ciborium::from_reader(bytes.as_slice()).unwrap();
   let fields = wire.as_map().unwrap();
-  assert!(fields
-    .iter()
-    .any(|(k, v)| k.as_text() == Some("count") && matches!(v, ciborium::Value::Integer(_))));
+  assert!(
+    fields
+      .iter()
+      .any(|(k, v)| k.as_text() == Some("count") && matches!(v, ciborium::Value::Integer(_)))
+  );
   let value = |name: &str| {
     &fields
       .iter()

@@ -17,7 +17,7 @@ use std::fmt;
 
 use ciborium::value::Integer;
 use ciborium_io::Read as _;
-use ciborium_ll::{simple, Decoder, Header};
+use ciborium_ll::{Decoder, Header, simple};
 
 /// A CBOR value representation that supports non-standard simple values.
 ///

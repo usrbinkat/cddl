@@ -13,8 +13,8 @@
 pub use cddl;
 
 use cddl::ast::{
-  Group, GroupChoice, GroupEntry, MemberKey, Occur, Rule, Type, Type1, Type2, TypeChoice, TypeRule,
-  ValueMemberKeyEntry, CDDL,
+  CDDL, Group, GroupChoice, GroupEntry, MemberKey, Occur, Rule, Type, Type1, Type2, TypeChoice,
+  TypeRule, ValueMemberKeyEntry,
 };
 use std::collections::BTreeMap;
 use std::fmt::Write;
@@ -1839,7 +1839,8 @@ fn append_fundamental_aliases(
     let name = to_pascal_case(ident);
     if available.contains_key(&name) {
       return Err(CodegenError::ConfigurationError(format!(
-        "generated name '{}' conflicts with a fundamental alias; rename the rule or disable fundamental_aliases", name
+        "generated name '{}' conflicts with a fundamental alias; rename the rule or disable fundamental_aliases",
+        name
       )));
     }
   }
@@ -2006,14 +2007,22 @@ fn render_tag_helpers(
         "        impl serde_with::SerializeAs<{}> for Adapter {{",
         inner
       )?;
-      writeln!(output, "            fn serialize_as<S: Serializer>(v: &{}, s: S) -> Result<S::Ok, S::Error> {{ serialize(v, s) }}", inner)?;
+      writeln!(
+        output,
+        "            fn serialize_as<S: Serializer>(v: &{}, s: S) -> Result<S::Ok, S::Error> {{ serialize(v, s) }}",
+        inner
+      )?;
       writeln!(output, "        }}")?;
       writeln!(
         output,
         "        impl<'de> serde_with::DeserializeAs<'de, {}> for Adapter {{",
         inner
       )?;
-      writeln!(output, "            fn deserialize_as<D: Deserializer<'de>>(d: D) -> Result<{}, D::Error> {{ deserialize(d) }}", inner)?;
+      writeln!(
+        output,
+        "            fn deserialize_as<D: Deserializer<'de>>(d: D) -> Result<{}, D::Error> {{ deserialize(d) }}",
+        inner
+      )?;
       writeln!(output, "        }}")?;
     }
     writeln!(output, "    }}")?;
@@ -2051,7 +2060,11 @@ fn render_tag_helpers(
     writeln!(output, "            }}")?;
     writeln!(output, "        }}")?;
     writeln!(output)?;
-    writeln!(output, "        pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<{}>, D::Error> {{", inner)?;
+    writeln!(
+      output,
+      "        pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<{}>, D::Error> {{",
+      inner
+    )?;
     writeln!(output, "            if d.is_human_readable() {{")?;
     writeln!(
       output,
@@ -2346,8 +2359,14 @@ fn render_flatten_deserialize(
     "        impl<'de> serde::de::Visitor<'de> for __CddlVisitor {{"
   )?;
   writeln!(output, "            type Value = {};", name)?;
-  writeln!(output, "            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {{ f.write_str(\"a map\") }}")?;
-  writeln!(output, "            fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {{")?;
+  writeln!(
+    output,
+    "            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {{ f.write_str(\"a map\") }}"
+  )?;
+  writeln!(
+    output,
+    "            fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {{"
+  )?;
   render_flatten_visit_body(output, name, fields, &keys)?;
   writeln!(output, "            }}\n        }}")?;
   writeln!(
@@ -2546,9 +2565,16 @@ fn render_flatten_match_arm(
     } else {
       "k"
     };
-    writeln!(output, "                        __CddlKey::Entries{i}(k) => {{ __f{i}.insert({key_expr}, map.next_value::<__CddlValue{i}>()?.0); }}")?;
+    writeln!(
+      output,
+      "                        __CddlKey::Entries{i}(k) => {{ __f{i}.insert({key_expr}, map.next_value::<__CddlValue{i}>()?.0); }}"
+    )?;
   } else {
-    writeln!(output, "                        __CddlKey::Field(__CddlField::F{i}) => {{\n                            if __f{i}.is_some() {{ return Err(serde::de::Error::duplicate_field({:?})); }}\n                            __f{i} = Some(map.next_value::<__CddlValue{i}>()?.0);\n                        }}", field.original_name)?;
+    writeln!(
+      output,
+      "                        __CddlKey::Field(__CddlField::F{i}) => {{\n                            if __f{i}.is_some() {{ return Err(serde::de::Error::duplicate_field({:?})); }}\n                            __f{i} = Some(map.next_value::<__CddlValue{i}>()?.0);\n                        }}",
+      field.original_name
+    )?;
   }
   Ok(())
 }
@@ -2831,7 +2857,10 @@ fn render_mixed_enum_deserialize(
     "    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {{"
   )?;
   render_mixed_literal_helper(output, variants)?;
-  writeln!(output, "        #[derive(serde::Deserialize)]\n        #[serde(untagged)]\n        enum __CddlChoice {{\n            Literals(__CddlLiterals),")?;
+  writeln!(
+    output,
+    "        #[derive(serde::Deserialize)]\n        #[serde(untagged)]\n        enum __CddlChoice {{\n            Literals(__CddlLiterals),"
+  )?;
   for (i, variant) in variants
     .iter()
     .enumerate()
@@ -3171,9 +3200,11 @@ mod tests {
       },
     )
     .unwrap_err();
-    assert!(error
-      .to_string()
-      .contains("conflicts with a fundamental alias"));
+    assert!(
+      error
+        .to_string()
+        .contains("conflicts with a fundamental alias")
+    );
   }
 
   #[test]

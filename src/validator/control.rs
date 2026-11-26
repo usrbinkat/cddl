@@ -1,7 +1,7 @@
 #![cfg(any(feature = "json", feature = "cbor"))]
 #![cfg(not(feature = "lsp"))]
 
-use crate::ast::{Identifier, Rule, Type2, CDDL};
+use crate::ast::{CDDL, Identifier, Rule, Type2};
 #[cfg(feature = "additional-controls")]
 use crate::{
   ast::{GroupEntry, MemberKey, Operator, RangeCtlOp},
@@ -159,7 +159,7 @@ pub fn cat_operation<'a>(
           return Err(format!(
             "error decoding base64 encoded byte string literal: {}",
             e
-          ))
+          ));
         }
       },
       // "testing" .cat ( "123" / "1234" )
@@ -285,7 +285,7 @@ pub fn cat_operation<'a>(
             return Err(format!(
               "error decoding base64 encoded byte string literal: {}",
               e
-            ))
+            ));
           }
         },
         // 'testing' .cat ( "123" / "1234" )
@@ -540,7 +540,7 @@ pub fn cat_operation<'a>(
       return Err(format!(
         "invalid target used for {} operation, got {}",
         ctrl, target
-      ))
+      ));
     }
   }
 
@@ -773,7 +773,7 @@ pub fn plus_operation<'a>(
       return Err(format!(
         "invalid target type in .plus control operator, got {}",
         target
-      ))
+      ));
     }
   }
 
@@ -804,40 +804,71 @@ pub fn validate_abnf(abnf: &str, target: &str) -> Result<(), String> {
   validate_abnf_in_current_thread(abnf, target)
 }
 
+/// `target` checked against an `.abnf` controller (RFC 9165, section 3): one
+/// ABNF element, then, after a newline, zero or more rules. The element is
+/// given a rule of its own, under a name no rule of the controller takes, and
+/// the target is accepted only when that rule matches all of it (pest's
+/// `SOI ~ rule ~ EOI`): a match of a prefix is a refusal.
 #[cfg(feature = "additional-controls")]
 fn validate_abnf_in_current_thread(abnf: &str, target: &str) -> Result<(), String> {
   let abnf = abnf.trim();
-  if let Some(idx) = abnf.find('\n') {
-    let (rule, abnf) = abnf.split_at(idx);
-    let rule = rule.trim();
-    let mut abnf = abnf.trim().to_string();
-    // Refer to https://docs.rs/abnf/0.13.0/abnf/fn.rulelist.html as to why it
-    // needs to end with a newline
-    abnf.push('\n');
-
-    let rules = abnf_to_pest::parse_abnf(&abnf).map_err(|e| e.to_string())?;
-    let mut w = Vec::new();
-    abnf_to_pest::render_rules_to_pest(rules)
-      .render(0, &mut w)
-      .unwrap();
-    let pest = String::from_utf8(w).unwrap();
-
-    let pairs = pest_meta::parser::parse(pest_meta::parser::Rule::grammar_rules, &pest)
-      .map_err(|e| e.to_string())?;
-
-    let ast = pest_meta::parser::consume_rules(pairs).map_err(|errors| {
-      errors
-        .into_iter()
-        .map(|error| error.to_string())
-        .collect::<Vec<_>>()
-        .join("\n")
-    })?;
-
-    let vm = pest_vm::Vm::new(pest_meta::optimizer::optimize(ast));
-
-    let rule = rule.replace('-', "_");
-    let _ = vm.parse(&rule, target).map_err(|e| e.to_string())?;
+  let (element, rules) = match abnf.split_once('\n') {
+    Some((element, rules)) => (element.trim(), rules.trim()),
+    None => (abnf, ""),
+  };
+  if element.is_empty() {
+    return Err(
+      "an .abnf controller begins with the ABNF element it matches (RFC 9165, section 3)"
+        .to_string(),
+    );
   }
+  // Refer to https://docs.rs/abnf/0.13.0/abnf/fn.rulelist.html as to why a
+  // rule list needs to end with a newline.
+  let defined = if rules.is_empty() {
+    Default::default()
+  } else {
+    abnf_to_pest::parse_abnf(&format!("{}\n", rules)).map_err(|e| e.to_string())?
+  };
+  // ABNF rule names are case-insensitive (RFC 5234, section 2.1), and a pest
+  // name is the ABNF name with `-` as `_`: neither name may be one the
+  // controller's rules already take.
+  let taken = |name: &str| defined.keys().any(|key| key.eq_ignore_ascii_case(name));
+  let mut ordinal = 0usize;
+  let (start, whole) = loop {
+    let start = format!("cddl-abnf-element-{}", ordinal);
+    let whole = format!("cddl_abnf_whole_{}", ordinal);
+    if !taken(&abnf_to_pest::escape_rulename(&start)) && !taken(&whole) {
+      break (start, whole);
+    }
+    ordinal += 1;
+  };
+
+  let rules = abnf_to_pest::parse_abnf(&format!("{} = {}\n{}\n", start, element, rules))
+    .map_err(|e| e.to_string())?;
+  let mut w = Vec::new();
+  abnf_to_pest::render_rules_to_pest(rules)
+    .render(0, &mut w)
+    .map_err(|e| e.to_string())?;
+  let mut pest = String::from_utf8(w).map_err(|e| e.to_string())?;
+  pest.push_str(&format!(
+    "\n{} = {{ SOI ~ {} ~ EOI }}\n",
+    whole,
+    abnf_to_pest::escape_rulename(&start)
+  ));
+
+  let pairs = pest_meta::parser::parse(pest_meta::parser::Rule::grammar_rules, &pest)
+    .map_err(|e| e.to_string())?;
+
+  let ast = pest_meta::parser::consume_rules(pairs).map_err(|errors| {
+    errors
+      .into_iter()
+      .map(|error| error.to_string())
+      .collect::<Vec<_>>()
+      .join("\n")
+  })?;
+
+  let vm = pest_vm::Vm::new(pest_meta::optimizer::optimize(ast));
+  vm.parse(&whole, target).map_err(|e| e.to_string())?;
 
   Ok(())
 }
@@ -855,10 +886,10 @@ pub fn abnf_from_complex_controller<'a>(
       if let RangeCtlOp::CtlOp { ctrl, .. } = operator.operator {
         match ctrl {
           ControlOperator::CAT => {
-            return cat_operation(cddl, &tc.type1.type2, &operator.type2, false)
+            return cat_operation(cddl, &tc.type1.type2, &operator.type2, false);
           }
           ControlOperator::DET => {
-            return cat_operation(cddl, &tc.type1.type2, &operator.type2, true)
+            return cat_operation(cddl, &tc.type1.type2, &operator.type2, true);
           }
           _ => return Err("invalid_controller".to_string()),
         }
@@ -987,6 +1018,36 @@ mod tests {
     validate_abnf(abnf_str, "2009")?;
 
     Ok(())
+  }
+
+  /// An `.abnf` controller is an element and its rules (RFC 9165, section
+  /// 3), and a target matches it only as a whole: a prefix match is refused,
+  /// with rules or without; the element need not be a rule name; a rule of
+  /// the controller under the name the element's own rule would take keeps
+  /// its meaning; an empty controller is refused.
+  #[cfg(feature = "additional-controls")]
+  #[test]
+  fn abnf_matches_only_the_whole_target() {
+    let ascii = "ascii\nascii = *%x00-7F\n";
+    assert!(validate_abnf(ascii, "abc").is_ok());
+    assert!(validate_abnf(ascii, "").is_ok());
+    assert!(
+      validate_abnf(ascii, "ab\u{E9}").is_err(),
+      "a prefix match was accepted"
+    );
+    assert!(validate_abnf("*%x00-7F", "abc").is_ok());
+    assert!(
+      validate_abnf("*%x00-7F", "ab\u{E9}").is_err(),
+      "a controller without rules accepted every target"
+    );
+    let digits = "2DIGIT\nDIGIT = %x30-39\n";
+    assert!(validate_abnf(digits, "12").is_ok());
+    assert!(validate_abnf(digits, "123").is_err());
+    assert!(validate_abnf(digits, "1").is_err());
+    let taken = "cddl-abnf-element-0\ncddl-abnf-element-0 = \"a\"\n";
+    assert!(validate_abnf(taken, "a").is_ok());
+    assert!(validate_abnf(taken, "aa").is_err());
+    assert!(validate_abnf("", "a").is_err());
   }
 
   #[cfg(feature = "additional-controls")]
@@ -1627,7 +1688,7 @@ pub fn validate_printf_text<'a>(
         _ => {
           return Err(
             "first element of printf controller array must be a format string".to_string(),
-          )
+          );
         }
       };
 
@@ -1821,7 +1882,7 @@ fn format_single_arg(
       return Err(format!(
         "unsupported printf conversion specifier: %{}",
         specifier
-      ))
+      ));
     }
   };
 

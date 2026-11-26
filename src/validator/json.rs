@@ -15,8 +15,8 @@ use std::{
   convert::TryFrom,
   fmt::{self, Write},
   sync::{
-    atomic::{AtomicUsize, Ordering},
     Arc, Mutex,
+    atomic::{AtomicUsize, Ordering},
   },
 };
 
@@ -2954,7 +2954,7 @@ impl<'a> Visitor<'a, '_, Error> for JSONValidator<'a> {
           Value::String(s) => match self.state.ctrl {
             Some(ControlOperator::SIZE) => {
               let len = s.len() as u64; // Fix: Convert len to u64
-                                        // Fix: Cast all usize values to u64
+              // Fix: Cast all usize values to u64
               let lower = *l as u64;
               let upper = *u as u64;
               if is_inclusive {
@@ -4843,11 +4843,7 @@ impl<'a> Visitor<'a, '_, Error> for JSONValidator<'a> {
             }
           }
           Some(ControlOperator::REGEXP) => {
-            let re = regex::Regex::new(
-              &format_regex(t)
-                .ok_or_else(|| Error::from_validator(self, "malformed regex".to_string()))?,
-            )
-            .map_err(|e| Error::from_validator(self, e.to_string()))?;
+            let re = regexp_regex(t).map_err(|e| Error::from_validator(self, e))?;
 
             if re.is_match(s) {
               None
@@ -4858,9 +4854,7 @@ impl<'a> Visitor<'a, '_, Error> for JSONValidator<'a> {
           Some(ControlOperator::PCRE) => {
             #[cfg(feature = "freezer")]
             {
-              let anchored = format!("^(?:{})$", t);
-              let re = fancy_regex::Regex::new(&anchored)
-                .map_err(|e| Error::from_validator(self, e.to_string()))?;
+              let re = whole_pcre(t).map_err(|e| Error::from_validator(self, e))?;
               match re.is_match(s) {
                 Ok(true) => None,
                 Ok(false) => Some(format!("expected \"{}\" to match pcre \"{}\"", s, t)),
@@ -4869,11 +4863,7 @@ impl<'a> Visitor<'a, '_, Error> for JSONValidator<'a> {
             }
             #[cfg(not(feature = "freezer"))]
             {
-              let re = regex::Regex::new(
-                &format_regex(t)
-                  .ok_or_else(|| Error::from_validator(self, "malformed regex".to_string()))?,
-              )
-              .map_err(|e| Error::from_validator(self, e.to_string()))?;
+              let re = regexp_regex(t).map_err(|e| Error::from_validator(self, e))?;
               if re.is_match(s) {
                 None
               } else {
@@ -4883,9 +4873,7 @@ impl<'a> Visitor<'a, '_, Error> for JSONValidator<'a> {
           }
           #[cfg(feature = "freezer")]
           Some(ControlOperator::IREGEXP) => {
-            let anchored = format!("^(?:{})$", t);
-            let re = regex::Regex::new(&anchored)
-              .map_err(|e| Error::from_validator(self, e.to_string()))?;
+            let re = whole_regex(t).map_err(|e| Error::from_validator(self, e))?;
             if re.is_match(s) {
               None
             } else {
@@ -5032,9 +5020,11 @@ mod tests {
       ..MapChoiceSearch::default()
     })));
     let error = validator.visit_group(group).unwrap_err();
-    assert!(error
-      .to_string()
-      .contains("invalid map group-choice replay"));
+    assert!(
+      error
+        .to_string()
+        .contains("invalid map group-choice replay")
+    );
     Ok(())
   }
 
@@ -5483,8 +5473,8 @@ mod tests {
   }
 
   #[test]
-  fn validate_group_choice_alternate_in_array_1(
-  ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+  fn validate_group_choice_alternate_in_array_1()
+  -> std::result::Result<(), Box<dyn std::error::Error>> {
     let cddl = indoc!(
       r#"
         tester = [$$val]
@@ -5523,8 +5513,8 @@ mod tests {
   }
 
   #[test]
-  fn validate_group_choice_alternate_in_array_2(
-  ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+  fn validate_group_choice_alternate_in_array_2()
+  -> std::result::Result<(), Box<dyn std::error::Error>> {
     let cddl = indoc!(
       r#"
         tester = [$$val]
@@ -6027,7 +6017,9 @@ mod tests {
         // We expect errors related to type mismatch
       }
       Ok(_) => {
-        panic!("Issue #174 bug detected: validation incorrectly passed when neither choice should validate")
+        panic!(
+          "Issue #174 bug detected: validation incorrectly passed when neither choice should validate"
+        )
       }
       Err(other) => panic!("Unexpected error type: {:?}", other),
     }
@@ -6086,8 +6078,8 @@ mod tests {
 
   #[cfg(feature = "additional-controls")]
   #[test]
-  fn validate_abnf_with_det_typename_controller(
-  ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+  fn validate_abnf_with_det_typename_controller()
+  -> std::result::Result<(), Box<dyn std::error::Error>> {
     let cddl_str = indoc!(
       r#"
         start = sdf-syntax

@@ -833,9 +833,11 @@ fn map_replay_unknown_key_rejection_restores_failed_candidate_state() {
     .visit_closed_map(group, &["fixed".into(), "unknown".into()])
     .unwrap();
   assert_eq!(validator.errors.len(), 1);
-  assert!(validator.errors[0]
-    .reason
-    .contains("unexpected key \"unknown\""));
+  assert!(
+    validator.errors[0]
+      .reason
+      .contains("unexpected key \"unknown\"")
+  );
   assert!(validator.validated_keys.is_none());
   assert!(validator.member_claims.is_empty());
   assert!(validator.object_value.is_none());
@@ -1399,12 +1401,14 @@ fn map_replay_suppressed_nested_nodes_preserve_enclosing_effects() {
   )
   .unwrap();
   let mut validator = limited_validator(&cddl, serde_json::json!({"b":"x"}), 2);
-  assert!(validator
-    .validate()
-    .unwrap_err()
-    .to_string()
-    .to_lowercase()
-    .contains("regex"));
+  assert!(
+    validator
+      .validate()
+      .unwrap_err()
+      .to_string()
+      .to_lowercase()
+      .contains("regex")
+  );
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -1431,12 +1435,14 @@ fn map_replay_zero_minimum_empty_choices_do_not_multiply_paths() {
       );
       let cddl = cddl_from_pest_str(&schema).unwrap();
       let mut validator = limited_validator(&cddl, serde_json::json!({"b":"x"}), 1);
-      assert!(validator
-        .validate()
-        .unwrap_err()
-        .to_string()
-        .to_lowercase()
-        .contains("regex"));
+      assert!(
+        validator
+          .validate()
+          .unwrap_err()
+          .to_string()
+          .to_lowercase()
+          .contains("regex")
+      );
     }
   }
 }
@@ -1472,11 +1478,13 @@ fn map_replay_nested_suppression_preserves_enclosing_effects() {
     let result = validator.validate();
     assert_eq!(result.is_ok(), valid);
     if !valid {
-      assert!(result
-        .unwrap_err()
-        .to_string()
-        .to_lowercase()
-        .contains("regex"));
+      assert!(
+        result
+          .unwrap_err()
+          .to_string()
+          .to_lowercase()
+          .contains("regex")
+      );
     }
   }
 }
@@ -1508,12 +1516,14 @@ fn map_replay_wrapped_generic_repetitions_do_not_copy_per_iteration() {
     let schema = schema.replace("uint", "tstr .regexp \"[\"");
     let cddl = cddl_from_pest_str(&schema).unwrap();
     let mut validator = limited_validator(&cddl, serde_json::json!({"bad":"x"}), 0);
-    assert!(validator
-      .validate()
-      .unwrap_err()
-      .to_string()
-      .to_lowercase()
-      .contains("regex"));
+    assert!(
+      validator
+        .validate()
+        .unwrap_err()
+        .to_string()
+        .to_lowercase()
+        .contains("regex")
+    );
   }
 }
 
@@ -1535,9 +1545,11 @@ fn map_replay_required_prefix_failure_does_not_enumerate_suffixes() {
   let Error::Validation(errors) = validator.validate().unwrap_err() else {
     panic!("required prefix must retain its ordinary validation diagnostic")
   };
-  assert!(errors
-    .iter()
-    .any(|e| e.reason.contains("missing key: required")));
+  assert!(
+    errors
+      .iter()
+      .any(|e| e.reason.contains("missing key: required"))
+  );
   let cddl = cddl_from_pest_str(
     "root = { ? (required: uint, (a: uint // b: uint)), (missing: uint // m: uint) }",
   )
@@ -1736,11 +1748,13 @@ fn map_replay_pruned_coverage_resets_on_reuse() {
   assert!(error.contains("expected type uint"));
   assert!(!error.contains("unexpected key \"d\""));
   validator.json = serde_json::json!({"a":1,"c":1,"d":1,"extra":2}).into();
-  assert!(validator
-    .validate()
-    .unwrap_err()
-    .to_string()
-    .contains("unexpected key \"extra\""));
+  assert!(
+    validator
+      .validate()
+      .unwrap_err()
+      .to_string()
+      .contains("unexpected key \"extra\"")
+  );
   validator.json = serde_json::json!({"a":1,"c":1,"d":1}).into();
   assert!(validator.validate().is_ok());
   let mut exhausted = limited_validator(&cddl, input, 0);

@@ -15,7 +15,7 @@ use std::{
   fmt::{self, Write},
 };
 
-use super::cbor_value::{decode_cbor, Value};
+use super::cbor_value::{Value, decode_cbor};
 use chrono::{TimeZone, Utc};
 use serde_json;
 
@@ -1743,11 +1743,7 @@ fn range_contains(value: i128, l: i128, u: i128, is_inclusive: bool) -> bool {
 
 /// The comparison an upper range endpoint imposes: `<=` for `..`, `<` for `...`.
 fn range_upper_operator(is_inclusive: bool) -> &'static str {
-  if is_inclusive {
-    "<="
-  } else {
-    "<"
-  }
+  if is_inclusive { "<=" } else { "<" }
 }
 
 impl<'a, T: std::fmt::Debug + 'static> Validator<'a, '_, cbor::Error<T>> for CBORValidator<'a>
@@ -5045,11 +5041,7 @@ where
             }
           }
           Some(ControlOperator::REGEXP) => {
-            let re = regex::Regex::new(
-              &format_regex(t)
-                .ok_or_else(|| Error::from_validator(self, "malformed regex".to_string()))?,
-            )
-            .map_err(|e| Error::from_validator(self, e.to_string()))?;
+            let re = regexp_regex(t).map_err(|e| Error::from_validator(self, e))?;
 
             if re.is_match(s) {
               None
@@ -5060,9 +5052,7 @@ where
           Some(ControlOperator::PCRE) => {
             #[cfg(feature = "freezer")]
             {
-              let anchored = format!("^(?:{})$", t);
-              let re = fancy_regex::Regex::new(&anchored)
-                .map_err(|e| Error::from_validator(self, e.to_string()))?;
+              let re = whole_pcre(t).map_err(|e| Error::from_validator(self, e))?;
               match re.is_match(s) {
                 Ok(true) => None,
                 Ok(false) => Some(format!("expected \"{}\" to match pcre \"{}\"", s, t)),
@@ -5071,11 +5061,7 @@ where
             }
             #[cfg(not(feature = "freezer"))]
             {
-              let re = regex::Regex::new(
-                &format_regex(t)
-                  .ok_or_else(|| Error::from_validator(self, "malformed regex".to_string()))?,
-              )
-              .map_err(|e| Error::from_validator(self, e.to_string()))?;
+              let re = regexp_regex(t).map_err(|e| Error::from_validator(self, e))?;
               if re.is_match(s) {
                 None
               } else {
@@ -5085,9 +5071,7 @@ where
           }
           #[cfg(feature = "freezer")]
           Some(ControlOperator::IREGEXP) => {
-            let anchored = format!("^(?:{})$", t);
-            let re = regex::Regex::new(&anchored)
-              .map_err(|e| Error::from_validator(self, e.to_string()))?;
+            let re = whole_regex(t).map_err(|e| Error::from_validator(self, e))?;
             if re.is_match(s) {
               None
             } else {
@@ -6078,8 +6062,8 @@ mod tests {
   }
 
   #[test]
-  fn validate_group_choice_alternate_in_array(
-  ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+  fn validate_group_choice_alternate_in_array()
+  -> std::result::Result<(), Box<dyn std::error::Error>> {
     let cddl = indoc!(
       r#"
         tester = [$$val]
@@ -6194,8 +6178,8 @@ mod tests {
   }
 
   #[test]
-  fn multi_type_choice_type_rule_array_validation(
-  ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+  fn multi_type_choice_type_rule_array_validation()
+  -> std::result::Result<(), Box<dyn std::error::Error>> {
     let cddl = indoc!(
       r#"
         Ref = nil / refShort / refFull
@@ -6794,8 +6778,8 @@ mod tests {
   }
 
   #[test]
-  fn test_issue_221_reproduce_exact_scenario_cbor(
-  ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+  fn test_issue_221_reproduce_exact_scenario_cbor()
+  -> std::result::Result<(), Box<dyn std::error::Error>> {
     // This test reproduces the exact scenario from issue #221 for CBOR
     let cddl_str = "root = {}";
     let cddl = cddl_from_str(cddl_str, true)?;
@@ -6837,8 +6821,8 @@ mod tests {
 
   #[cfg(feature = "additional-controls")]
   #[test]
-  fn validate_abnf_with_det_typename_controller(
-  ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+  fn validate_abnf_with_det_typename_controller()
+  -> std::result::Result<(), Box<dyn std::error::Error>> {
     let cddl_str = indoc!(
       r#"
         start = modified-date-time

@@ -4,7 +4,7 @@
 //! draft-ietf-cbor-cddl-modules-07.
 
 use cddl::modules::{
-  resolve_modules, MemoryModuleSource, ModuleError, ResolveOptions, ResolvedCddl,
+  MemoryModuleSource, ModuleError, ResolveOptions, ResolvedCddl, resolve_modules,
 };
 
 #[cfg(all(any(feature = "json", feature = "cbor"), not(feature = "lsp")))]
@@ -159,23 +159,27 @@ fn owning_document_validation_failures_are_silent() {
     .unwrap();
     #[cfg(feature = "json")]
     for json in ["-1", "{"] {
-      assert!(document
-        .validate_json(
-          json,
-          #[cfg(feature = "additional-controls")]
-          None,
-        )
-        .is_err());
+      assert!(
+        document
+          .validate_json(
+            json,
+            #[cfg(feature = "additional-controls")]
+            None,
+          )
+          .is_err()
+      );
     }
     #[cfg(feature = "cbor")]
     for cbor in [&[0x20][..], &[]] {
-      assert!(document
-        .validate_cbor(
-          cbor,
-          #[cfg(feature = "additional-controls")]
-          None,
-        )
-        .is_err());
+      assert!(
+        document
+          .validate_cbor(
+            cbor,
+            #[cfg(feature = "additional-controls")]
+            None,
+          )
+          .is_err()
+      );
     }
   });
 }
@@ -672,7 +676,7 @@ fn import_aliases_are_emitted_only_once() {
 #[cfg(all(feature = "json", feature = "cbor", feature = "csv-validate"))]
 #[test]
 fn filesystem_imports_validate_names_and_respect_empty_environment() {
-  use cddl::modules::{FsModuleSource, ModuleSource, INCLUDE_PATH_VAR};
+  use cddl::modules::{FsModuleSource, INCLUDE_PATH_VAR, ModuleSource};
   use std::{fs, process::Command};
 
   let directory = std::env::temp_dir().join(format!("cddl-modules-{}", std::process::id()));

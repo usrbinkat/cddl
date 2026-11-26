@@ -38,12 +38,12 @@ use crate::{
   lexer::Position,
   parser::Error,
   pest_parser::{CddlParser, Rule},
-  token::{lookup_control_from_str, ControlOperator, SocketPlug, TagConstraint, Value},
+  token::{ControlOperator, SocketPlug, TagConstraint, Value, lookup_control_from_str},
 };
 
 use pest::{
-  iterators::{Pair, Pairs},
   Parser as PestParser, Span as PestSpan,
+  iterators::{Pair, Pairs},
 };
 
 #[cfg(not(feature = "std"))]
@@ -3839,9 +3839,11 @@ foo = 0 / 1
     )
     .unwrap();
     assert_eq!(rule_leading(&cddl, "foo"), Some(" doc"));
-    assert!(find_type(&cddl, "foo").type_choices[0]
-      .comments_before_type
-      .is_none());
+    assert!(
+      find_type(&cddl, "foo").type_choices[0]
+        .comments_before_type
+        .is_none()
+    );
   }
 
   // a leading comment before a NON-first type-choice alternative

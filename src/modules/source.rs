@@ -171,9 +171,11 @@ mod tests {
     let source = FsModuleSource::from_include_path(DEFAULT_INCLUDE_PATH);
     assert_eq!(source.directories().len(), 1);
     assert_eq!(source.load("rfc9052").unwrap(), None);
-    assert!(FsModuleSource::from_include_path("")
-      .directories()
-      .is_empty());
+    assert!(
+      FsModuleSource::from_include_path("")
+        .directories()
+        .is_empty()
+    );
   }
 
   #[cfg(all(feature = "std", not(target_arch = "wasm32")))]

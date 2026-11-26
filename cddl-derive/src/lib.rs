@@ -226,7 +226,7 @@ extern crate proc_macro;
 use cddl_codegen_rust::CodegenOptions;
 use proc_macro::TokenStream;
 use syn::parse::{Parse, ParseStream};
-use syn::{parenthesized, parse_macro_input, Ident, LitBool, LitStr, Token};
+use syn::{Ident, LitBool, LitStr, Token, parenthesized, parse_macro_input};
 
 /// Parse the option keys shared by `#[cddl(...)]` and `cddl_typegen!(...)`.
 ///

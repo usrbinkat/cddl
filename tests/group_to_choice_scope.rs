@@ -5,7 +5,7 @@
 
 use cddl::validator::{cbor, json as json_validator};
 use cddl::{validate_cbor_from_slice, validate_json_from_str};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn assert_validation(schema: &str, value: Value, expected: bool) {
   let mut bytes = Vec::new();

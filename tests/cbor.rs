@@ -4,7 +4,7 @@
 
 use cddl::{
   cddl_from_str,
-  validator::{cbor::CBORValidator, cbor_value, validate_cbor_from_slice, Validator},
+  validator::{Validator, cbor::CBORValidator, cbor_value, validate_cbor_from_slice},
 };
 use ciborium::value::Value;
 use indoc::indoc;
@@ -847,13 +847,15 @@ fn verify_large_tag_values() -> Result<(), Box<dyn Error>> {
   let cbor = Value::Tag(42, Box::new(Value::Text(test_str.to_string())));
   let mut bytes = Vec::new();
   ciborium::ser::into_writer(&cbor, &mut bytes)?;
-  assert!(validate_cbor_from_slice(
-    input,
-    &bytes,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_ok());
+  assert!(
+    validate_cbor_from_slice(
+      input,
+      &bytes,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_ok()
+  );
 
   // Test tag 8386104246373017956 (large tag value)
   let cbor = Value::Tag(
@@ -862,25 +864,29 @@ fn verify_large_tag_values() -> Result<(), Box<dyn Error>> {
   );
   let mut bytes = Vec::new();
   ciborium::ser::into_writer(&cbor, &mut bytes)?;
-  assert!(validate_cbor_from_slice(
-    input,
-    &bytes,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_ok());
+  assert!(
+    validate_cbor_from_slice(
+      input,
+      &bytes,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_ok()
+  );
 
   // Test wrong tag value - should fail
   let cbor = Value::Tag(99, Box::new(Value::Text(test_str.to_string())));
   let mut bytes = Vec::new();
   ciborium::ser::into_writer(&cbor, &mut bytes)?;
-  assert!(validate_cbor_from_slice(
-    input,
-    &bytes,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      input,
+      &bytes,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
 
   Ok(())
 }
@@ -1444,13 +1450,15 @@ fn validate_decfrac_and_bigfloat() -> Result<(), Box<dyn Error>> {
     ])),
   );
   let bytes = cbor_encode(&cbor_val);
-  assert!(validate_cbor_from_slice(
-    cddl_input,
-    &bytes,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      cddl_input,
+      &bytes,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
 
   // Invalid: wrong tag for bigfloat (tag 4 instead of 5)
   let cddl_input = r#"measurement = bigfloat"#;
@@ -1462,25 +1470,29 @@ fn validate_decfrac_and_bigfloat() -> Result<(), Box<dyn Error>> {
     ])),
   );
   let bytes = cbor_encode(&cbor_val);
-  assert!(validate_cbor_from_slice(
-    cddl_input,
-    &bytes,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      cddl_input,
+      &bytes,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
 
   // Invalid: not an array inside tag
   let cddl_input = r#"temperature = decfrac"#;
   let cbor_val = Value::Tag(4, Box::new(Value::Integer(42.into())));
   let bytes = cbor_encode(&cbor_val);
-  assert!(validate_cbor_from_slice(
-    cddl_input,
-    &bytes,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      cddl_input,
+      &bytes,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
 
   // Invalid: array with wrong types (float instead of int for exponent)
   let cddl_input = r#"temperature = decfrac"#;
@@ -1492,13 +1504,15 @@ fn validate_decfrac_and_bigfloat() -> Result<(), Box<dyn Error>> {
     ])),
   );
   let bytes = cbor_encode(&cbor_val);
-  assert!(validate_cbor_from_slice(
-    cddl_input,
-    &bytes,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      cddl_input,
+      &bytes,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
 
   // Valid: using with explicit tag notation
   let cddl_input = r#"mytype = #6.4([int, integer])"#;
@@ -1559,13 +1573,15 @@ fn validate_optional_type_domain_map_entry_absent() -> Result<(), Box<dyn Error>
   )?;
   // present entry with a bad value type still fails
   let bad_value = b"\xa1\x61\x61\x61\x62"; // {"a": "b"}
-  assert!(validate_cbor_from_slice(
-    r#"m = { ? tstr => uint }"#,
-    bad_value,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      r#"m = { ? tstr => uint }"#,
+      bad_value,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
 
   // other key types take the same code path
   validate_cbor_from_slice(
@@ -1588,13 +1604,15 @@ fn validate_optional_type_domain_map_entry_absent() -> Result<(), Box<dyn Error>
   )?;
 
   // an occurrence-less entry must still require a match
-  assert!(validate_cbor_from_slice(
-    r#"m = { tstr => uint }"#,
-    empty_map,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      r#"m = { tstr => uint }"#,
+      empty_map,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
 
   // absent optional entry alongside other entries that do consume the keys
   let int_entry = b"\xa1\x01\x02"; // {1: 2}
@@ -2933,28 +2951,34 @@ fn validate_map_unexpected_entries_rejected() -> Result<(), Box<dyn Error>> {
     #[cfg(feature = "additional-controls")]
     None,
   )?;
-  assert!(validate_cbor_from_slice(
-    r#"m = { ? k: uint }"#,
-    a1,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
-  assert!(validate_cbor_from_slice(
-    r#"m = { ? k: uint }"#,
-    k1_a2,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      r#"m = { ? k: uint }"#,
+      a1,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
+  assert!(
+    validate_cbor_from_slice(
+      r#"m = { ? k: uint }"#,
+      k1_a2,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
   // absent optional type-domain entry does not excuse a key of another domain
-  assert!(validate_cbor_from_slice(
-    r#"m = { ? tstr => uint }"#,
-    int_entry,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      r#"m = { ? tstr => uint }"#,
+      int_entry,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
 
   Ok(())
 }
@@ -2984,13 +3008,15 @@ fn validate_map_any_key_permits_extra_entries() -> Result<(), Box<dyn Error>> {
     #[cfg(feature = "additional-controls")]
     None,
   )?;
-  assert!(validate_cbor_from_slice(
-    r#"m = { * any => any, k: uint }"#,
-    k1_z9,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      r#"m = { * any => any, k: uint }"#,
+      k1_z9,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
   // colon shortcut form
   validate_cbor_from_slice(
     r#"m = { k: uint, * any: any }"#,
@@ -3012,13 +3038,15 @@ fn validate_map_any_key_permits_extra_entries() -> Result<(), Box<dyn Error>> {
     None,
   )?;
   // `+` still requires at least one entry
-  assert!(validate_cbor_from_slice(
-    r#"m = { + any => any }"#,
-    empty_map,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      r#"m = { + any => any }"#,
+      empty_map,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
   validate_cbor_from_slice(
     r#"m = { + any => any }"#,
     k1,
@@ -3026,21 +3054,25 @@ fn validate_map_any_key_permits_extra_entries() -> Result<(), Box<dyn Error>> {
     None,
   )?;
   // an `any` key does not excuse a value-type mismatch
-  assert!(validate_cbor_from_slice(
-    r#"m = { k: uint, * any => uint }"#,
-    k1_ztext,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      r#"m = { k: uint, * any => uint }"#,
+      k1_ztext,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
   // a map without the extension member stays closed
-  assert!(validate_cbor_from_slice(
-    r#"m = { k: uint }"#,
-    k1_z9,
-    #[cfg(feature = "additional-controls")]
-    None
-  )
-  .is_err());
+  assert!(
+    validate_cbor_from_slice(
+      r#"m = { k: uint }"#,
+      k1_z9,
+      #[cfg(feature = "additional-controls")]
+      None
+    )
+    .is_err()
+  );
 
   Ok(())
 }

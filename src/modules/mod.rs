@@ -36,15 +36,15 @@ use alloc::{string::String, vec::Vec};
 
 use core::fmt;
 
-pub use directive::{parse_directives, Directive, DirectiveKind, NameSelector};
+pub use directive::{Directive, DirectiveKind, NameSelector, parse_directives};
+pub use document::ResolvedCddl;
 #[cfg(all(target_arch = "wasm32", feature = "std"))]
 pub use document::resolve_cddl_modules;
-pub use document::ResolvedCddl;
-pub use resolver::{resolve_modules, ResolveOptions};
+pub use resolver::{ResolveOptions, resolve_modules};
 pub use source::{MemoryModuleSource, ModuleSource};
 
 #[cfg(all(feature = "std", not(target_arch = "wasm32")))]
-pub use source::{FsModuleSource, DEFAULT_INCLUDE_PATH, INCLUDE_PATH_SEPARATOR, INCLUDE_PATH_VAR};
+pub use source::{DEFAULT_INCLUDE_PATH, FsModuleSource, INCLUDE_PATH_SEPARATOR, INCLUDE_PATH_VAR};
 
 /// Errors arising from parsing or resolving CDDL module directives.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -20,9 +20,9 @@ use alloc::{
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-  directive::{is_filename, is_id, parse_directives, Directive, DirectiveKind, NameSelector},
-  scan::{directive_ranges, scan, IdentRole},
   ModuleError, ModuleSource,
+  directive::{Directive, DirectiveKind, NameSelector, is_filename, is_id, parse_directives},
+  scan::{IdentRole, directive_ranges, scan},
 };
 
 /// The names of the standard prelude (Appendix D of RFC 8610). Prelude names

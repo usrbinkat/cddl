@@ -3,7 +3,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::string::String;
 
-use super::{resolve_modules, ModuleError, ModuleSource, ResolveOptions};
+use super::{ModuleError, ModuleSource, ResolveOptions, resolve_modules};
 
 /// An owned basic CDDL document produced by module resolution.
 ///
@@ -66,7 +66,7 @@ impl ResolvedCddl {
     json: &str,
     #[cfg(feature = "additional-controls")] enabled_features: Option<&[&str]>,
   ) -> crate::validator::json::Result {
-    use crate::validator::{json, Validator};
+    use crate::validator::{Validator, json};
 
     let cddl = self
       .parse()
@@ -92,9 +92,8 @@ impl ResolvedCddl {
     #[cfg(feature = "additional-controls")] enabled_features: Option<&[&str]>,
   ) -> crate::validator::cbor::Result<std::io::Error> {
     use crate::validator::{
-      cbor,
-      cbor_value::{decode_cbor, DecodeError},
-      Validator,
+      Validator, cbor,
+      cbor_value::{DecodeError, decode_cbor},
     };
 
     let cddl = self

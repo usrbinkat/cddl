@@ -78,10 +78,12 @@ fn wildcard_entries_are_flat_in_both_directions() {
   let table: Table = serde_json::from_value(json!({"a": 1})).unwrap();
   assert_eq!(table.entries, HashMap::from([("a".into(), 1)]));
   assert_eq!(serde_json::to_value(table).unwrap(), json!({"a": 1}));
-  assert!(serde_json::from_value::<Table>(json!({}))
-    .unwrap()
-    .entries
-    .is_empty());
+  assert!(
+    serde_json::from_value::<Table>(json!({}))
+      .unwrap()
+      .entries
+      .is_empty()
+  );
 }
 
 #[test]

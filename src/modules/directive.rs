@@ -23,7 +23,7 @@ use alloc::{
   vec::Vec,
 };
 
-use super::{scan::directive_ranges, ModuleError};
+use super::{ModuleError, scan::directive_ranges};
 
 /// Which of the two directive groups a directive belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,7 +108,7 @@ fn parse_line(rest: &str, line: usize) -> Result<Directive, ModuleError> {
           "unknown directive \"{}\"; expected \"import\" or \"include\"",
           other
         ),
-      })
+      });
     }
     None => return Err(err(line, "empty directive")),
   };
@@ -159,7 +159,7 @@ fn parse_line(rest: &str, line: usize) -> Result<Directive, ModuleError> {
       return Err(ModuleError::Directive {
         line,
         message: format!("\"{}\" is not a valid module name", name),
-      })
+      });
     }
     None => return Err(err(line, "directive names no module")),
   };
@@ -172,13 +172,13 @@ fn parse_line(rest: &str, line: usize) -> Result<Directive, ModuleError> {
       return Err(ModuleError::Directive {
         line,
         message: format!("\"{}\" is not a valid namespace", alias),
-      })
+      });
     }
     extra => {
       return Err(ModuleError::Directive {
         line,
         message: format!("unexpected trailing text: \"{}\"", extra.join(" ")),
-      })
+      });
     }
   };
 
@@ -358,9 +358,11 @@ mod tests {
 
   #[test]
   fn ordinary_comments_are_not_directives() {
-    assert!(parse_directives("; import rfc9052\na = int\n")
-      .unwrap()
-      .is_empty());
+    assert!(
+      parse_directives("; import rfc9052\na = int\n")
+        .unwrap()
+        .is_empty()
+    );
   }
 
   #[test]
