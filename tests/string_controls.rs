@@ -91,11 +91,13 @@ fn a_constrained_key_type_is_matched_against_each_key() {
     let admitted = if cddl.contains("[a-c]") { "b" } else { "a" };
     assert!(
       map_accepted(cddl, admitted),
-      "{cddl}: a key the control admits was refused"
+      "{}: a key the control admits was refused",
+      cddl
     );
     assert!(
       !map_accepted(cddl, "z"),
-      "{cddl}: a key the control refuses was accepted"
+      "{}: a key the control refuses was accepted",
+      cddl
     );
   }
   let sized = "root = { * (tstr .size 2 => uint) }";
