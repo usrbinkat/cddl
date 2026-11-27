@@ -10,6 +10,9 @@ pub mod csv_validator;
 pub mod json;
 
 mod control;
+/// XSD regular expressions (XML Schema Part 2, Appendix F), the `.regexp`
+/// language
+pub mod xsd;
 
 #[cfg(feature = "ast-span")]
 use crate::ast::Span;
@@ -754,12 +757,14 @@ pub(crate) fn choice_member_key_for_depth<'e, 'a>(
   // A cut recursive reference must not reach the scalar path, which follows
   // it without end, even when a single alternative remains. A control over a
   // choice (`(int / tstr) .and any`) also matches each key on its own, by
-  // probing the complete constrained type.
+  // probing the complete constrained type. So does any key constrained by a
+  // predicate control (`tstr .regexp "a"`, `tstr .size 3`): the scalar path
+  // would apply the control to the whole map, never to a key.
   let choice = alternatives.len() > 1
     || !acyclic
-    || alternatives
-      .first()
-      .is_some_and(|alternative| control_targets_choice(state, alternative));
+    || alternatives.first().is_some_and(|alternative| {
+      control_targets_choice(state, alternative) || is_predicate_constrained(alternative)
+    });
   choice.then_some((t1.as_ref(), alternatives, *is_cut))
 }
 
@@ -780,6 +785,20 @@ pub(crate) fn choice_member_occurrence(
     min
   };
   (occurrence, min, max)
+}
+
+/// Whether a type is constrained by a predicate control: one that tests the
+/// values of its target rather than computing a value from it (`.plus`,
+/// `.cat`, `.det`, which yield a literal the scalar path looks up), and not a
+/// range.
+fn is_predicate_constrained(t1: &Type1) -> bool {
+  matches!(
+    &t1.operator,
+    Some(operator) if matches!(
+      &operator.operator,
+      RangeCtlOp::CtlOp { ctrl, .. } if !is_computed_control(ctrl)
+    )
+  )
 }
 
 /// Whether a type carries a control operator whose target is a choice.
@@ -2008,59 +2027,6 @@ impl<E> ArraySeqCtx<'_, E> {
   }
 }
 
-/// The escapes of XSD regular expressions (W3C XML Schema Part 2, Appendix F,
-/// productions [24], [25], [26] and [37]) that the `regex` crate reads with
-/// the same letter: kept escaped by [`format_regex`], never reduced to the
-/// letter itself.
-const XSD_ESCAPES: &str = "nrtsSdDwWpP";
-
-/// A `.regexp` controller's pattern (RFC 8610, section 3.8.3) in the dialect
-/// of the `regex` crate, or `None` when it uses a construct that dialect does
-/// not have (lookaround) or ends in a lone backslash. One left-to-right pass,
-/// so an escaped backslash never escapes the character after it:
-///
-/// - an escape of a `regex` metacharacter, and the XSD escapes `\n`, `\r`,
-///   `\t`, `\s`, `\S`, `\d`, `\D`, `\w`, `\W`, `\p{..}` and `\P{..}`, are
-///   kept;
-/// - any other escaped character is that character, as schemas written for
-///   other dialects use it (`\:`, `\_`, `\/`); see
-///   <https://github.com/anweiss/cddl/issues/67>;
-/// - a named group `(?<name>` is written `(?P<name>`.
-///
-/// The pattern is matched against the whole target ([`regexp_regex`]).
-pub fn format_regex(input: &str) -> Option<String> {
-  let mut formatted = String::with_capacity(input.len());
-  let mut chars = input.chars().peekable();
-  while let Some(c) = chars.next() {
-    match c {
-      '\\' => {
-        let escaped = chars.next()?;
-        if regex_syntax::is_meta_character(escaped) || XSD_ESCAPES.contains(escaped) {
-          formatted.push('\\');
-        }
-        formatted.push(escaped);
-      }
-      '(' if chars.peek() == Some(&'?') => {
-        chars.next();
-        formatted.push_str("(?");
-        match chars.peek() {
-          Some('=') | Some('!') => return None,
-          Some('<') => {
-            chars.next();
-            if let Some('=') | Some('!') = chars.peek() {
-              return None;
-            }
-            formatted.push_str("P<");
-          }
-          _ => {}
-        }
-      }
-      _ => formatted.push(c),
-    }
-  }
-  Some(formatted)
-}
-
 /// `pattern`, in the `regex` crate's dialect, compiled to match a target only
 /// as a whole. The pattern is first compiled on its own, so a pattern that is
 /// not one regular expression (`a)(b`) is refused rather than given another
@@ -2082,10 +2048,12 @@ pub fn whole_pcre(pattern: &str) -> Result<fancy_regex::Regex, String> {
 }
 
 /// A `.regexp` controller compiled to match exactly the text strings it
-/// denotes: XSD regular expressions are implicitly anchored at head and tail
-/// (W3C XML Schema Part 2, Appendix F), so the target must match as a whole.
+/// denotes: an XSD regular expression (RFC 8610, section 3.8.3), translated
+/// by the Appendix F grammar ([`xsd::to_regex`]), which refuses any other
+/// dialect, and implicitly anchored at head and tail, so the target must
+/// match as a whole.
 pub fn regexp_regex(pattern: &str) -> Result<regex::Regex, String> {
-  whole_regex(&format_regex(pattern).ok_or_else(|| "malformed regex".to_string())?)
+  whole_regex(&xsd::to_regex(pattern)?)
 }
 
 #[allow(missing_docs)]
@@ -2175,46 +2143,34 @@ mod tests {
     );
   }
 
-  /// The XSD escapes the `regex` crate reads alike survive translation, an
+  /// A `.regexp` controller is XSD alone: its escapes are Appendix F's, an
   /// escaped backslash escapes nothing after it, and an escape after
-  /// non-ASCII text is read where it is; other escaped characters are the
-  /// characters, as schemas written for other dialects use them.
+  /// non-ASCII text is read where it is; another dialect's escapes and
+  /// groups are refused, not given a meaning.
   #[test]
-  fn xsd_escapes_survive_translation() {
-    let upper = regexp_regex("\\p{Lu}+").unwrap();
-    assert!(upper.is_match("AB"));
-    assert!(!upper.is_match("ab"));
-    assert!(regexp_regex("\\P{Lu}").unwrap().is_match("a"));
+  fn a_regexp_is_xsd_alone() {
+    assert!(regexp_regex("\\p{Lu}+").unwrap().is_match("AB"));
     assert!(
       regexp_regex("a\\nb\\tc\\rd")
         .unwrap()
         .is_match("a\nb\tc\rd")
     );
-    assert!(regexp_regex("\\d{2}\\s\\S").unwrap().is_match("42 x"));
-    assert!(regexp_regex("\\w\\W").unwrap().is_match("a-"));
     assert!(regexp_regex("\\\\:").unwrap().is_match("\\:"));
     assert!(
-      regexp_regex("\u{E9}\u{E9}\\:")
+      regexp_regex("\u{E9}\u{E9}\\.")
         .unwrap()
-        .is_match("\u{E9}\u{E9}:")
+        .is_match("\u{E9}\u{E9}.")
     );
-    assert!(
-      regexp_regex("did\\:(?<method>[a-z]+)")
-        .unwrap()
-        .is_match("did:web")
-    );
+    for foreign in ["did\\:", "(?<method>[a-z]+)", "(?=a)a", "a\\", "a)(b"] {
+      assert!(regexp_regex(foreign).is_err(), "{:?} was accepted", foreign);
+    }
   }
 
-  /// A pattern that is not one expression is refused rather than given
-  /// another meaning by the anchoring group; so are lookaround, which the
-  /// `regex` crate does not have, and a trailing lone backslash.
+  /// A pattern of the target dialect that is not one expression is refused
+  /// rather than given another meaning by the anchoring group.
   #[test]
   fn a_pattern_that_is_not_one_expression_is_refused() {
     assert!(whole_regex("a)(b").is_err());
-    assert!(regexp_regex("a)(b").is_err());
-    assert!(regexp_regex("a\\").is_err());
-    assert!(regexp_regex("(?=a)a").is_err());
-    assert!(regexp_regex("(?<!a)b").is_err());
   }
 
   #[cfg(feature = "json")]

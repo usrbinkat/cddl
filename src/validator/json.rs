@@ -4863,7 +4863,7 @@ impl<'a> Visitor<'a, '_, Error> for JSONValidator<'a> {
             }
             #[cfg(not(feature = "freezer"))]
             {
-              let re = regexp_regex(t).map_err(|e| Error::from_validator(self, e))?;
+              let re = whole_regex(t).map_err(|e| Error::from_validator(self, e))?;
               if re.is_match(s) {
                 None
               } else {

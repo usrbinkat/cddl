@@ -265,7 +265,7 @@ fn repeated_transparent_alias_keys_preserve_bounds_and_claims() {
     ),
     ("root = { 0*0 (label => uint) } label = tstr", r#"{"a":1}"#),
     (
-      r#"root = { * (label => uint) } label = tstr .regexp "^a$""#,
+      r#"root = { * (label => uint) } label = tstr .regexp "a""#,
       r#"{"b":1}"#,
     ),
     (
@@ -532,8 +532,9 @@ fn repeated_single_members_preserve_bounds_and_movable_claims() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn repeated_single_members_do_not_bypass_key_domains() {
-  let constrained = r#"root = { * (key => uint) } key = tstr .regexp "^a$""#;
+  let constrained = r#"root = { * (key => uint) } key = tstr .regexp "a""#;
   assert!(validates(constrained, "{}"));
+  assert!(validates(constrained, r#"{"a":1}"#));
   assert!(!validates(constrained, r#"{"b":1}"#));
   for schema in [
     "root = { * (tstr => uint) } tstr = uint",

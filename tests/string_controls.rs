@@ -50,3 +50,55 @@ fn an_abnf_accepts_only_whole_matches() {
   assert!(accepted(cddl, "abc"));
   assert!(!accepted(cddl, "ab\u{E9}"), "a prefix match was accepted");
 }
+
+/// A map with one text key `key` and the value 1, in CBOR and in JSON.
+fn map_of(key: &str) -> (Vec<u8>, String) {
+  let mut cbor = Vec::new();
+  ciborium::into_writer(
+    &ciborium::value::Value::Map(vec![(
+      ciborium::value::Value::Text(key.to_string()),
+      ciborium::value::Value::Integer(1.into()),
+    )]),
+    &mut cbor,
+  )
+  .unwrap();
+  (cbor, serde_json::json!({ key: 1 }).to_string())
+}
+
+/// `map_of(key)` accepted by `cddl` in CBOR and in JSON alike, or refused by
+/// both.
+fn map_accepted(cddl: &str, key: &str) -> bool {
+  let (cbor, json) = map_of(key);
+  let cbor = validate_cbor_from_slice(cddl, &cbor, None).is_ok();
+  let json = validate_json_from_str(cddl, &json, None).is_ok();
+  assert_eq!(
+    cbor, json,
+    "{cddl:?} on key {key:?}: CBOR {cbor}, JSON {json}"
+  );
+  cbor
+}
+
+/// A key type constrained by a control is matched against each map key,
+/// never against the map: a key the control admits is accepted, one it
+/// refuses is not, under a repeated member and a single one.
+#[test]
+fn a_constrained_key_type_is_matched_against_each_key() {
+  for cddl in [
+    r#"root = { * (key => uint) } key = tstr .regexp "a""#,
+    r#"root = { key => uint } key = tstr .regexp "a""#,
+    r#"root = { * (tstr .regexp "[a-c]" => uint) }"#,
+  ] {
+    let admitted = if cddl.contains("[a-c]") { "b" } else { "a" };
+    assert!(
+      map_accepted(cddl, admitted),
+      "{cddl}: a key the control admits was refused"
+    );
+    assert!(
+      !map_accepted(cddl, "z"),
+      "{cddl}: a key the control refuses was accepted"
+    );
+  }
+  let sized = "root = { * (tstr .size 2 => uint) }";
+  assert!(map_accepted(sized, "ab"));
+  assert!(!map_accepted(sized, "abc"));
+}

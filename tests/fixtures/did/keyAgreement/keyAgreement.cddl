@@ -4,12 +4,12 @@ DID-document = {
 
 }
 
-did = text .regexp "did\\:(?<method_name>[A-Za-z0-9]+)\\:(?<method_specific_id>[A-Za-z0-9\\.\\-\\:\\_]+)"
+did = text .regexp "did:[A-Za-z0-9]+:[A-Za-z0-9\\.\\-:_]+"
 
-did-url = text .regexp "did\\:(?<did_method>[a-z0-9]+)\\:(?<did_method_identifier>[A-Za-z0-9\\.\\-\\:\\_]+)\\/?(?<path>[A-Za-z0-9\\/]+)\\??(?<query>[A-Za-z0-9\\=\\&\\%\\-\\:]+)?\\#?(?<fragment>[A-Za-z0-9\\-]+)?"
+did-url = text .regexp "did:[a-z0-9]+:[A-Za-z0-9\\.\\-:_]+/?[A-Za-z0-9/]+\\??([A-Za-z0-9=&%\\-:]+)?#?([A-Za-z0-9\\-]+)?"
 
 ;; base URI value is the DID that is associated with the DID subject
-relative-did-url = text .regexp "^#.+$"   ;  fragment identifier of self relative DID url, i.e. #key-1 in DID document with `id` = did:example:123456789abcdefghi becomes `did:example:123456789abcdefghi#key-1`
+relative-did-url = text .regexp "#.+"   ;  fragment identifier of self relative DID url, i.e. #key-1 in DID document with `id` = did:example:123456789abcdefghi becomes `did:example:123456789abcdefghi#key-1`
 
 
 ;;; 

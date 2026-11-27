@@ -525,16 +525,16 @@
 //! `.regexp` matches a text string only as a whole: XSD regular expressions
 //! are implicitly anchored at head and tail ([XML Schema Part 2, Appendix
 //! F](https://www.w3.org/TR/2004/REC-xmlschema-2-20041028/#regexs)), so `tstr
-//! .regexp "[a-z]+"` refuses `"abc1"`. A pattern is translated to the `regex`
-//! crate's dialect in one pass: the XSD escapes `\n`, `\r`, `\t`, `\s`, `\S`,
-//! `\d`, `\D`, `\w`, `\W`, `\p{..}` and `\P{..}` and escaped `regex`
-//! metacharacters are kept; any other escaped character stands for itself, as
-//! schemas written for other dialects use it (`\:`, `\_`). Lookaround is
-//! refused. Character classes follow the `regex` crate (`.` excludes only
-//! `\n`; `\s`, `\w` and `\d` are Unicode-aware); XSD's class subtraction,
-//! block escapes (`\p{IsBasicLatin}`) and `\i`/`\c` are not translated. Write
-//! code points with CDDL's `\u` escapes, as RFC 8610, section 3.8.3.1,
-//! recommends: `tstr .regexp "[\u0000-\u007F]*"` is the ASCII text strings.
+//! .regexp "[a-z]+"` refuses `"abc1"`. A pattern is read by the Appendix F
+//! grammar and nothing else ([`validator::xsd`]): `^` and `$` are ordinary
+//! characters, the escapes and classes are Appendix F's (`\i` and `\c` from
+//! XML 1.0, Second Edition; `\p{IsBlock}` from the Appendix F.1.1 table, both
+//! read from `data/xsd`), and a construct XSD does not have (`\:`, `(?:`,
+//! `(?<name>`, lookaround) is refused with an error. Ranges span every Unicode
+//! scalar value; code points are written with CDDL's `\u` escapes, as RFC
+//! 8610, section 3.8.3.1, recommends: `tstr .regexp "[\u0000-\u007F]*"` is the
+//! ASCII text strings. Without the `freezer` feature, `.pcre` is compiled as
+//! the `regex` crate's dialect, anchored.
 //!
 //! `.abnf` and `.abnfb` read their controller as one ABNF element followed,
 //! after a newline, by zero or more rules ([RFC 9165, section

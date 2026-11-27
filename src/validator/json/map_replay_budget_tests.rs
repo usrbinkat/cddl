@@ -104,8 +104,10 @@ fn map_replay_capacity_failures_preserve_later_claim_errors() {
       match validator.validate() {
         Err(Error::Validation(errors)) => assert!(
           errors.len() == 1
-            && errors[0].reason.contains("regex parse error")
-            && errors[0].reason.contains("unclosed character class"),
+            && errors[0].reason.contains("invalid XSD regular expression")
+            && errors[0]
+              .reason
+              .contains("a character class is not closed by ']'"),
           "{}: {:?}",
           schema,
           errors
@@ -113,14 +115,14 @@ fn map_replay_capacity_failures_preserve_later_claim_errors() {
         outcome => panic!("expected regex error for {}, got {:?}", schema, outcome),
       }
 
-      let valid_regex = schema.replace(r#""[""#, r#""^z+$""#);
+      let valid_regex = schema.replace(r#""[""#, r#""z+""#);
       let cddl = cddl_from_pest_str(&valid_regex).unwrap();
       let mut validator = limited_validator(&cddl, input.clone(), 4096);
       if fallback.is_empty() {
         assert!(matches!(
           validator.validate(),
           Err(Error::Validation(errors))
-            if !errors.is_empty() && errors.iter().all(|error| !error.reason.contains("regex"))
+            if !errors.is_empty() && errors.iter().all(|error| !error.reason.contains("regular expression"))
         ));
       } else {
         assert!(validator.validate().is_ok());
@@ -177,8 +179,10 @@ fn map_replay_pruning_preserves_later_regex_errors() {
     match validator.validate() {
       Err(Error::Validation(errors)) => assert!(
         errors.len() == 1
-          && errors[0].reason.contains("regex parse error")
-          && errors[0].reason.contains("unclosed character class"),
+          && errors[0].reason.contains("invalid XSD regular expression")
+          && errors[0]
+            .reason
+            .contains("a character class is not closed by ']'"),
         "{}: {:?}",
         schema,
         errors
@@ -236,15 +240,17 @@ fn map_replay_tail_proof_preserves_pending_generic_shadowing() {
     match validator.validate() {
       Err(Error::Validation(errors)) => assert!(
         errors.len() == 1
-          && errors[0].reason.contains("regex parse error")
-          && errors[0].reason.contains("unclosed character class"),
+          && errors[0].reason.contains("invalid XSD regular expression")
+          && errors[0]
+            .reason
+            .contains("a character class is not closed by ']'"),
         "{}: {:?}",
         schema,
         errors
       ),
       outcome => panic!("expected regex error for {}, got {:?}", schema, outcome),
     }
-    let valid_schema = schema.replace(".regexp \"[\"", ".regexp \"^text$\"");
+    let valid_schema = schema.replace(".regexp \"[\"", ".regexp \"text\"");
     let cddl = cddl_from_pest_str(&valid_schema).unwrap();
     let mut validator = limited_validator(&cddl, serde_json::from_str(input).unwrap(), 4096);
     assert!(validator.validate().is_ok(), "{}", valid_schema);
@@ -557,8 +563,10 @@ fn map_replay_optional_mismatch_preserves_claim_revalidation_errors() {
       };
       assert_eq!(errors.len(), 1, "{schema}: {errors:?}");
       assert!(
-        errors[0].reason.contains("regex parse error")
-          && errors[0].reason.contains("unclosed character class"),
+        errors[0].reason.contains("invalid XSD regular expression")
+          && errors[0]
+            .reason
+            .contains("a character class is not closed by ']'"),
         "{}: {:?}",
         schema,
         errors
@@ -1407,7 +1415,7 @@ fn map_replay_suppressed_nested_nodes_preserve_enclosing_effects() {
       .unwrap_err()
       .to_string()
       .to_lowercase()
-      .contains("regex")
+      .contains("regular expression")
   );
 }
 
@@ -1441,7 +1449,7 @@ fn map_replay_zero_minimum_empty_choices_do_not_multiply_paths() {
           .unwrap_err()
           .to_string()
           .to_lowercase()
-          .contains("regex")
+          .contains("regular expression")
       );
     }
   }
@@ -1470,7 +1478,7 @@ fn map_replay_zero_maximum_names_do_not_enter_depth_slots() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn map_replay_nested_suppression_preserves_enclosing_effects() {
-  for (pattern, valid) in [("[", false), ("^x$", true)] {
+  for (pattern, valid) in [("[", false), ("x", true)] {
     let schema =
       format!("root = {{ (required: uint,), (a: uint // b: tstr .regexp \"{pattern}\") }} / any");
     let cddl = cddl_from_pest_str(&schema).unwrap();
@@ -1483,7 +1491,7 @@ fn map_replay_nested_suppression_preserves_enclosing_effects() {
           .unwrap_err()
           .to_string()
           .to_lowercase()
-          .contains("regex")
+          .contains("regular expression")
       );
     }
   }
@@ -1522,7 +1530,7 @@ fn map_replay_wrapped_generic_repetitions_do_not_copy_per_iteration() {
         .unwrap_err()
         .to_string()
         .to_lowercase()
-        .contains("regex")
+        .contains("regular expression")
     );
   }
 }
